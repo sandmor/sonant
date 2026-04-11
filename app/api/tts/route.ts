@@ -60,9 +60,9 @@ type AuthUser = NonNullable<
 
 const POLLY_ENGINE_PRIORITY: Engine[] = [
   "neural",
-  "long-form",
   "standard",
   "generative",
+  "long-form",
 ];
 
 function resolvePollyEngine(engines: unknown): Engine {
