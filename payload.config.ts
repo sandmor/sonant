@@ -24,13 +24,14 @@ const emailAdapter = process.env.RESEND_API_KEY
   ? resendAdapter({
       defaultFromAddress:
         process.env.RESEND_FROM_EMAIL || "noreply@example.com",
-      defaultFromName: "My App",
+      defaultFromName: "Sonant",
       apiKey: process.env.RESEND_API_KEY,
     })
   : undefined;
 
 export default buildConfig({
   secret: process.env.PAYLOAD_SECRET || "",
+  serverURL: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
   admin: {
     user: "users",
   },

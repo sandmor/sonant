@@ -7,6 +7,10 @@ import {
   type VoiceOption,
 } from "@/lib/tts/client";
 
+export type RegisterResult = {
+  ok: true;
+};
+
 function makeHTTPError(message: string, status: number) {
   const error = new Error(message) as Error & { status?: number };
   error.status = status;
@@ -50,7 +54,10 @@ export async function login(form: AuthFormState) {
   });
 
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Unable to log in"));
+    throw makeHTTPError(
+      await readErrorMessage(response, "Unable to log in"),
+      response.status,
+    );
   }
 
   const payload = (await response.json()) as {
@@ -74,7 +81,7 @@ export async function login(form: AuthFormState) {
   } satisfies AuthUser;
 }
 
-export async function register(form: AuthFormState) {
+export async function register(form: AuthFormState): Promise<RegisterResult> {
   const response = await fetch("/api/users", {
     method: "POST",
     credentials: "include",
@@ -87,6 +94,58 @@ export async function register(form: AuthFormState) {
   if (!response.ok) {
     throw new Error(
       await readErrorMessage(response, "Unable to create account"),
+    );
+  }
+
+  return { ok: true };
+}
+
+export async function verifyEmailToken(token: string) {
+  const response = await fetch(
+    `/api/users/verify/${encodeURIComponent(token)}`,
+    {
+      method: "POST",
+      credentials: "include",
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(response, "Unable to verify email token"),
+    );
+  }
+}
+
+export async function requestPasswordReset(email: string) {
+  const response = await fetch("/api/users/forgot-password", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email }),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(response, "Unable to request password reset"),
+    );
+  }
+}
+
+export async function resetPassword(args: { token: string; password: string }) {
+  const response = await fetch("/api/users/reset-password", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(args),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(response, "Unable to reset password"),
     );
   }
 }

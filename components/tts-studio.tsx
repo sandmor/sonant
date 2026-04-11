@@ -18,6 +18,7 @@ import {
   Trash2,
   Volume2,
 } from "lucide-react";
+import Link from "next/link";
 
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
@@ -68,6 +69,7 @@ import {
   type VoiceOption,
 } from "@/lib/tts/client";
 import { UsageIndicator } from "@/components/usage-indicator";
+import { AppSuspenseScreen } from "@/components/app-suspense-screen";
 
 function WaveformBars({
   count = 5,
@@ -107,6 +109,7 @@ function AuthScreen({
   registerForm,
   authBusy,
   authError,
+  authNotice,
   onLoginFormChange,
   onRegisterFormChange,
   onLoginSubmit,
@@ -116,6 +119,7 @@ function AuthScreen({
   registerForm: AuthFormState;
   authBusy: boolean;
   authError: string | null;
+  authNotice: string | null;
   onLoginFormChange: (form: AuthFormState) => void;
   onRegisterFormChange: (form: AuthFormState) => void;
   onLoginSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
@@ -222,9 +226,24 @@ function AuthScreen({
                 />
               </div>
 
+              <div className="flex justify-end">
+                <Link
+                  href="/forgot-password"
+                  className="text-xs text-primary/90 transition-colors hover:text-primary"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+
               {authError ? (
                 <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                   {authError}
+                </div>
+              ) : null}
+
+              {authNotice ? (
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+                  {authNotice}
                 </div>
               ) : null}
 
@@ -297,6 +316,12 @@ function AuthScreen({
               {authError ? (
                 <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                   {authError}
+                </div>
+              ) : null}
+
+              {authNotice ? (
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+                  {authNotice}
                 </div>
               ) : null}
 
@@ -531,6 +556,7 @@ export function TTSWorkspace() {
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
 
   const [loginForm, setLoginForm] = useState<AuthFormState>(initialLoginForm);
   const [registerForm, setRegisterForm] =
@@ -812,6 +838,7 @@ export function TTSWorkspace() {
 
     setAuthBusy(true);
     setAuthError(null);
+    setAuthNotice(null);
 
     try {
       const user = await login(loginForm);
@@ -831,15 +858,34 @@ export function TTSWorkspace() {
 
     setAuthBusy(true);
     setAuthError(null);
+    setAuthNotice(null);
 
     try {
+      const email = registerForm.email;
+
       await register(registerForm);
-      const user = await login(registerForm);
-      setAuthUser(user);
       setRegisterForm(initialRegisterForm);
+
+      const sessionUser = await getSessionUser();
+
+      if (sessionUser) {
+        setAuthUser(sessionUser);
+        setLoginForm(initialLoginForm);
+        return;
+      }
+
+      setLoginForm((current) => ({
+        ...current,
+        email,
+        password: "",
+      }));
+      setAuthNotice(
+        "Account created. Please verify your email from the inbox link before signing in.",
+      );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to create account";
+
       setAuthError(message);
     } finally {
       setAuthBusy(false);
@@ -943,16 +989,7 @@ export function TTSWorkspace() {
   }
 
   if (isCheckingSession) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4 animate-fade-up">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
-            <LoaderCircle className="size-6 animate-spin text-primary" />
-          </div>
-          <p className="text-sm text-muted-foreground">Loading studio…</p>
-        </div>
-      </div>
-    );
+    return <AppSuspenseScreen message="Loading studio..." />;
   }
 
   if (!authUser) {
@@ -962,6 +999,7 @@ export function TTSWorkspace() {
         registerForm={registerForm}
         authBusy={authBusy}
         authError={authError}
+        authNotice={authNotice}
         onLoginFormChange={setLoginForm}
         onRegisterFormChange={setRegisterForm}
         onLoginSubmit={handleLoginSubmit}

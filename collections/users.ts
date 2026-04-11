@@ -56,22 +56,49 @@ function buildUpdateScopeWhere(args: {
 export const Users: CollectionConfig = {
   slug: "users",
   auth: {
-    verify: enforceVerification
-      ? {
-          generateEmailHTML: ({ req, token, user }) => {
-            const url = `${process.env.NEXT_PUBLIC_APP_URL}/verify?token=${token}`;
-            return `
-              <p>Hey ${user.email},</p>
-              <p>Thanks for choosing Sonant,</p>
-              <p>Please verify your email by clicking the link below:</p>
-              <a href="${url}">${url}</a>
-            `;
-          },
-          generateEmailSubject: ({ user }) => {
-            return `Verify your account, ${user.email}!`;
-          },
+    verify: {
+      generateEmailHTML: ({ token, user }) => {
+        const url = `${process.env.NEXT_PUBLIC_APP_URL}/verify?token=${token}`;
+        return `
+          <p>Hey ${user.email},</p>
+          <p>Thanks for choosing Sonant,</p>
+          <p>Please verify your email by clicking the link below:</p>
+          <a href="${url}">${url}</a>
+        `;
+      },
+      generateEmailSubject: ({ user }) => {
+        return `Verify your account, ${user.email}!`;
+      },
+    },
+    forgotPassword: {
+      generateEmailHTML: (args) => {
+        const token = args?.token ?? "";
+        const userEmail = args?.user?.email ?? "there";
+        const url = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
+        return `
+          <p>Hey ${userEmail},</p>
+          <p>We received a request to reset your Sonant password.</p>
+          <p>Use the link below to set a new password:</p>
+          <a href="${url}">${url}</a>
+          <p>If you did not request this, you can safely ignore this email.</p>
+        `;
+      },
+      generateEmailSubject: (args) => {
+        const userEmail = args?.user?.email ?? "friend";
+        return `Reset your Sonant password, ${userEmail}`;
+      },
+    },
+  },
+  hooks: {
+    beforeChange: [
+      ({ data, operation }) => {
+        if (operation === "create" && !enforceVerification) {
+          (data as Record<string, unknown>)._verified = true;
         }
-      : false,
+
+        return data;
+      },
+    ],
   },
   admin: {
     useAsTitle: "email",
