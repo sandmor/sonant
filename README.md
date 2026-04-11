@@ -55,6 +55,14 @@ Primary admin authorization is role-based (`users.role = admin`).
 - `AWS_SECRET_ACCESS_KEY` (optional when using default AWS credential chain)
 - `DEFAULT_POLLY_VOICE_ID` (optional, default: `Joanna`)
 
+### Email Verification (optional)
+
+- `RESEND_API_KEY` (optional) - Resend API key for sending verification emails
+- `RESEND_FROM_EMAIL` (optional, default: `noreply@example.com`) - From address for verification emails
+- `REQUIRE_VERIFICATION` (optional) - Set to `true` to require email verification for new users
+
+When `RESEND_API_KEY` is configured, users can optionally enable email verification via `REQUIRE_VERIFICATION`.
+
 ### TTS Retention (optional)
 
 - `TTS_RETENTION_DAYS` (optional, default: `90`)

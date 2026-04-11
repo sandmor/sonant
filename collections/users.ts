@@ -6,6 +6,8 @@ import { DEFAULT_WEEKLY_CHARACTER_LIMIT } from "@/lib/usage-limits";
 
 import { isAdminUser } from "./access";
 
+const enforceVerification = process.env.REQUIRE_VERIFICATION === "true";
+
 const isAdminAccess = ({
   req,
 }: {
@@ -53,7 +55,24 @@ function buildUpdateScopeWhere(args: {
 
 export const Users: CollectionConfig = {
   slug: "users",
-  auth: true,
+  auth: {
+    verify: enforceVerification
+      ? {
+          generateEmailHTML: ({ req, token, user }) => {
+            const url = `${process.env.NEXT_PUBLIC_APP_URL}/verify?token=${token}`;
+            return `
+              <p>Hey ${user.email},</p>
+              <p>Thanks for choosing Sonant,</p>
+              <p>Please verify your email by clicking the link below:</p>
+              <a href="${url}">${url}</a>
+            `;
+          },
+          generateEmailSubject: ({ user }) => {
+            return `Verify your account, ${user.email}!`;
+          },
+        }
+      : false,
+  },
   admin: {
     useAsTitle: "email",
     components: {

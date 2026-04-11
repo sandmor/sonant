@@ -4,6 +4,7 @@ import { lexicalEditor } from "@payloadcms/richtext-lexical";
 import { s3Storage } from "@payloadcms/storage-s3";
 import path from "path";
 import { fileURLToPath } from "url";
+import { resendAdapter } from "@payloadcms/email-resend";
 
 import { Users } from "./collections/users";
 import { Voices } from "./collections/voices";
@@ -19,6 +20,15 @@ const dirname = path.dirname(filename);
 
 const s3Config = getRequiredS3Config();
 
+const emailAdapter = process.env.RESEND_API_KEY
+  ? resendAdapter({
+      defaultFromAddress:
+        process.env.RESEND_FROM_EMAIL || "noreply@example.com",
+      defaultFromName: "My App",
+      apiKey: process.env.RESEND_API_KEY,
+    })
+  : undefined;
+
 export default buildConfig({
   secret: process.env.PAYLOAD_SECRET || "",
   admin: {
@@ -33,6 +43,7 @@ export default buildConfig({
       connectionString: process.env.DATABASE_URL || "",
     },
   }),
+  email: emailAdapter,
   collections: [Users, Voices, TTSAudio, TTSGenerations, TTSWeeklyUsage],
   plugins: [
     s3Storage({
