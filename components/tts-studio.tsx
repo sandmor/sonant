@@ -15,7 +15,6 @@ import {
   RefreshCw,
   Search,
   Sun,
-  Trash2,
   Volume2,
 } from "lucide-react";
 import Link from "next/link";
@@ -24,6 +23,7 @@ import { useTheme } from "next-themes";
 import { toast } from "sonner";
 
 import { getSourceLabel, makeVoiceKey, parseVoiceKey } from "@/lib/voices";
+import { AudioController } from "@/lib/audio-controller";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,6 +70,12 @@ import {
 } from "@/lib/tts/client";
 import { UsageIndicator } from "@/components/usage-indicator";
 import { AppSuspenseScreen } from "@/components/app-suspense-screen";
+import { InlineConfirm } from "@/components/ui/inline-confirm";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { CharacterCounter } from "@/components/ui/character-counter";
+import { Pagination } from "@/components/ui/pagination";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { useDraftPersistence } from "@/hooks/use-draft-persistence";
 
 function WaveformBars({
   count = 5,
@@ -128,7 +134,7 @@ function AuthScreen({
   const [authTab, setAuthTab] = useState<"login" | "register">("login");
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-6 py-12">
+    <div className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
       <div
         className="w-full max-w-md animate-fade-up"
         style={{ animationDelay: "0.1s" }}
@@ -138,7 +144,7 @@ function AuthScreen({
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-primary/20">
             <Volume2 className="h-7 w-7 text-primary" />
           </div>
-          <h1 className="font-heading text-4xl text-foreground text-glow">
+          <h1 className="font-heading text-3xl text-foreground text-glow sm:text-4xl">
             Sonant
           </h1>
           <p className="mt-2 text-muted-foreground">
@@ -359,58 +365,86 @@ function PlayerCard({
   generation: GenerationWithAudio;
   onReuse: () => void;
 }) {
+  const audioSrc = generation.audioUrl;
+  const containerRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const currentTimeRef = useRef<HTMLSpanElement>(null);
+  const durationRef = useRef<HTMLSpanElement>(null);
+
   const [isPlaying, setIsPlaying] = useState(false);
+  const [duration, setDuration] = useState(0);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    if (!containerRef.current || !audioRef.current) return;
 
-    const handlePlay = () => setIsPlaying(true);
-    const handlePause = () => setIsPlaying(false);
-    const handleEnded = () => setIsPlaying(false);
+    const controller = new AudioController(containerRef.current, {
+      onPlay: () => setIsPlaying(true),
+      onPause: () => setIsPlaying(false),
+      onEnded: () => setIsPlaying(false),
+      onLoad: (dur) => setDuration(dur),
+      currentTimeElement: currentTimeRef.current,
+      durationElement: durationRef.current,
+    });
 
-    audio.addEventListener("play", handlePlay);
-    audio.addEventListener("pause", handlePause);
-    audio.addEventListener("ended", handleEnded);
+    controller.attach(audioRef.current);
 
     return () => {
-      audio.removeEventListener("play", handlePlay);
-      audio.removeEventListener("pause", handlePause);
-      audio.removeEventListener("ended", handleEnded);
+      controller.destroy();
     };
-  }, [generation.id]);
+  }, [audioSrc]);
 
-  const audioSrc = generation.audioUrl;
+  const handleToggle = () => {
+    if (!audioRef.current) return;
+
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      document.querySelectorAll("audio").forEach((audio) => {
+        if (!audio.paused) audio.pause();
+      });
+      audioRef.current.play().catch(() => {});
+    }
+  };
+
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!audioRef.current || !duration) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const percent = (e.clientX - rect.left) / rect.width;
+    const time = percent * duration;
+    audioRef.current.currentTime = time;
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
 
   return (
-    <div className="animate-fade-up rounded-2xl border border-border/50 bg-card/60 p-5 shadow-lg shadow-black/10 backdrop-blur-sm">
+    <div
+      ref={containerRef}
+      data-playing={isPlaying}
+      className="audio-player-container animate-fade-up rounded-2xl border border-border/50 bg-card/60 p-5 shadow-lg shadow-black/10 backdrop-blur-sm"
+    >
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-xs font-medium uppercase tracking-widest text-primary">
             Now playing
           </p>
-          <h3 className="mt-1 truncate text-lg font-medium text-foreground">
+          <h3 className="mt-1 line-clamp-2 break-words text-base leading-tight font-medium text-foreground sm:text-lg sm:line-clamp-1">
             {generation.title}
           </h3>
         </div>
         <WaveformBars count={7} active={isPlaying} />
       </div>
 
-      {/* Custom controls */}
-      <div className="flex items-center gap-3">
+      <div className="audio-controls">
         <button
           type="button"
-          onClick={() => {
-            const audio = audioRef.current;
-            if (!audio) return;
-            if (isPlaying) {
-              audio.pause();
-            } else {
-              audio.play();
-            }
-          }}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md shadow-primary/20 transition-transform hover:scale-105 active:scale-95"
+          onClick={handleToggle}
+          className="audio-play-button"
+          aria-label={isPlaying ? "Pause" : "Play"}
         >
           {isPlaying ? (
             <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
@@ -422,26 +456,41 @@ function PlayerCard({
           )}
         </button>
 
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="audio-info">
+          <div className="audio-meta">
             <span className="truncate">
               {voiceLabelFromGeneration(generation)}
             </span>
-            <span>·</span>
+            <span className="audio-meta-separator">·</span>
             <span className="shrink-0">{generation.voiceEngine}</span>
-            <span>·</span>
+            <span className="audio-meta-separator">·</span>
             <span className="shrink-0">{generation.charCount} chars</span>
           </div>
-          {/* Single audio instance keeps custom and native controls in sync */}
-          <audio
-            ref={audioRef}
-            key={generation.id}
-            className="h-8 w-full opacity-60 hover:opacity-100 transition-opacity"
-            controls
-            src={audioSrc}
-          />
+
+          <div className="flex items-center gap-2">
+            <span ref={currentTimeRef} className="audio-time">
+              0:00
+            </span>
+            <div
+              className="audio-progress-bar"
+              onClick={handleSeek}
+              aria-label="Seek"
+            >
+              <div className="audio-progress-fill" />
+            </div>
+            <span ref={durationRef} className="audio-time">
+              {formatTime(duration)}
+            </span>
+          </div>
         </div>
       </div>
+
+      <audio
+        ref={audioRef}
+        src={audioSrc}
+        className="audio-element"
+        preload="metadata"
+      />
 
       <div className="mt-4 flex flex-wrap gap-2">
         <Button
@@ -505,7 +554,7 @@ function HistoryItem({
             {entry.inputText}
           </p>
         </div>
-        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="flex items-center gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
           <button
             type="button"
             onClick={(e) => {
@@ -517,17 +566,15 @@ function HistoryItem({
           >
             <RefreshCw className="size-3.5" />
           </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-            title="Delete"
-          >
-            <Trash2 className="size-3.5" />
-          </button>
+          <div onClick={(e) => e.stopPropagation()}>
+            <InlineConfirm
+              onConfirm={onDelete}
+              confirmLabel="Delete"
+              cancelLabel="Cancel"
+              variant="destructive"
+              aria-label="Delete generation"
+            />
+          </div>
         </div>
       </div>
 
@@ -545,7 +592,7 @@ function HistoryItem({
   );
 }
 
-export function TTSWorkspace() {
+function TTSWorkspaceContent() {
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [openVoicePicker, setOpenVoicePicker] = useState(false);
@@ -581,6 +628,19 @@ export function TTSWorkspace() {
   const [selectedGenerationId, setSelectedGenerationId] = useState<
     number | null
   >(null);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+
+  // Unsaved changes dialog state
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [pendingGeneration, setPendingGeneration] = useState<Generation | null>(
+    null,
+  );
+
+  // Draft persistence
+  useDraftPersistence(text, setText);
 
   const [usage, setUsage] = useState<UsageData | null>(null);
   const [isUsageLoading, setIsUsageLoading] = useState(false);
@@ -625,6 +685,19 @@ export function TTSWorkspace() {
     });
   }, [history, historyQuery]);
 
+  // Paginated history
+  const paginatedHistory = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredHistory.slice(start, start + itemsPerPage);
+  }, [filteredHistory, currentPage]);
+
+  const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
+
+  // Reset to first page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [historyQuery]);
+
   const selectedGeneration = useMemo(() => {
     if (selectedGenerationId) {
       return history.find((entry) => entry.id === selectedGenerationId) ?? null;
@@ -637,6 +710,12 @@ export function TTSWorkspace() {
   const selectedGenerationHasAudio = selectedGeneration
     ? hasPlayableAudio(selectedGeneration)
     : false;
+
+  // Track original text for unsaved changes detection
+  const [originalText, setOriginalText] = useState("");
+  const hasUnsavedChanges = useMemo(() => {
+    return text.trim() !== originalText.trim() && text.trim().length > 0;
+  }, [text, originalText]);
 
   async function loadHistory() {
     setIsHistoryLoading(true);
@@ -914,6 +993,11 @@ export function TTSWorkspace() {
       return;
     }
 
+    // Pause any playing audio before generating
+    document.querySelectorAll("audio").forEach((audio) => {
+      if (!audio.paused) audio.pause();
+    });
+
     setIsGenerating(true);
     setGenerationError(null);
 
@@ -929,6 +1013,10 @@ export function TTSWorkspace() {
         ...prev.filter((entry) => entry.id !== nextGeneration.id),
       ]);
       setSelectedGenerationId(nextGeneration.id);
+
+      // Update original text to mark as saved
+      setOriginalText(text);
+
       toast.success("Audio generated successfully");
 
       // Refresh usage data after successful generation
@@ -986,7 +1074,46 @@ export function TTSWorkspace() {
     setText(generation.inputText);
     setVoiceId(makeVoiceKey(generation.voiceSource, generation.sourceVoiceId));
     setSelectedGenerationId(generation.id);
+    // Update original text since we're explicitly loading
+    setOriginalText(generation.inputText);
   }
+
+  function handleReuseWithCheck(generation: Generation) {
+    if (hasUnsavedChanges && text.trim() !== generation.inputText.trim()) {
+      setPendingGeneration(generation);
+      setShowUnsavedDialog(true);
+    } else {
+      applyGenerationToDraft(generation);
+    }
+  }
+
+  function handleConfirmReuse() {
+    if (pendingGeneration) {
+      applyGenerationToDraft(pendingGeneration);
+      setPendingGeneration(null);
+    }
+    setShowUnsavedDialog(false);
+  }
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts([
+    {
+      key: "Enter",
+      modifier: "meta",
+      action: () => {
+        if (!isGenerating && text.trim().length > 0 && voiceId) {
+          const form = document.getElementById("tts-form") as HTMLFormElement;
+          form?.requestSubmit();
+        }
+      },
+      condition: () => !isGenerating && text.trim().length > 0 && !!voiceId,
+    },
+    {
+      key: "Escape",
+      action: () => setOpenVoicePicker(false),
+      condition: () => openVoicePicker,
+    },
+  ]);
 
   if (isCheckingSession) {
     return <AppSuspenseScreen message="Loading studio..." />;
@@ -1015,7 +1142,7 @@ export function TTSWorkspace() {
   return (
     <div className="grain-overlay relative flex min-h-screen flex-col">
       <header className="sticky top-0 z-30 border-b border-border/40 bg-background/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-5">
+        <div className="mx-auto flex min-h-14 max-w-7xl items-center justify-between gap-2 px-3 py-2 sm:gap-4 sm:px-5 sm:py-0">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15">
               <Volume2 className="h-4 w-4 text-primary" />
@@ -1023,7 +1150,7 @@ export function TTSWorkspace() {
             <span className="font-heading text-lg text-foreground">Sonant</span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3">
             <div className="hidden items-center gap-2 sm:flex">
               <div className="h-2 w-2 rounded-full bg-emerald-500/80 animate-pulse-glow" />
               <span className="text-xs text-muted-foreground">
@@ -1031,14 +1158,14 @@ export function TTSWorkspace() {
               </span>
             </div>
 
-            <div className="h-5 w-px bg-border/60" />
+            <div className="hidden h-5 w-px bg-border/60 sm:block" />
 
             <UsageIndicator usage={usage} isLoading={isUsageLoading} />
 
-            <div className="h-5 w-px bg-border/60" />
+            <div className="hidden h-5 w-px bg-border/60 sm:block" />
 
             <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary sm:h-7 sm:w-7">
                 {(authUser.name ?? authUser.email).slice(0, 1).toUpperCase()}
               </div>
               <span className="hidden text-sm text-foreground sm:inline">
@@ -1084,7 +1211,7 @@ export function TTSWorkspace() {
       </header>
 
       <main className="flex-1">
-        <div className="mx-auto max-w-7xl px-5 py-6 lg:py-8">
+        <div className="mx-auto max-w-7xl px-3 py-4 sm:px-5 sm:py-6 lg:py-8">
           <div className="mb-8 animate-fade-up">
             <h1 className="font-heading text-3xl text-foreground text-glow sm:text-4xl lg:text-5xl">
               Voice Studio
@@ -1097,10 +1224,14 @@ export function TTSWorkspace() {
 
           <div className="grid gap-6 lg:grid-cols-[1fr_380px] xl:grid-cols-[1fr_420px]">
             <div
-              className="space-y-6 animate-fade-up"
+              className="min-w-0 space-y-6 animate-fade-up"
               style={{ animationDelay: "0.1s" }}
             >
-              <form className="space-y-5" onSubmit={handleGenerate}>
+              <form
+                id="tts-form"
+                className="space-y-5"
+                onSubmit={handleGenerate}
+              >
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <Mic className="size-4 text-primary" />
@@ -1240,9 +1371,11 @@ export function TTSWorkspace() {
                     >
                       Script
                     </Label>
-                    <span className="text-xs tabular-nums text-muted-foreground/60">
-                      {text.length.toLocaleString()} / 3,000
-                    </span>
+                    {hasUnsavedChanges && (
+                      <span className="text-[10px] text-amber-500 font-medium">
+                        Unsaved changes
+                      </span>
+                    )}
                   </div>
                   <Textarea
                     id="tts-text"
@@ -1250,9 +1383,15 @@ export function TTSWorkspace() {
                     minLength={1}
                     maxLength={3000}
                     placeholder="Write your narration, podcast copy, ad script, or social content…"
-                    className="min-h-48 rounded-xl border-border/40 bg-card/60 p-4 text-[15px] leading-relaxed backdrop-blur-sm placeholder:text-muted-foreground/40 focus-visible:bg-card/80"
+                    className="min-h-40 rounded-xl border-border/40 bg-card/60 p-4 text-[15px] leading-relaxed backdrop-blur-sm placeholder:text-muted-foreground/40 focus-visible:bg-card/80 sm:min-h-48"
                     value={text}
                     onChange={(event) => setText(event.target.value)}
+                  />
+                  <CharacterCounter
+                    current={text.length}
+                    max={3000}
+                    warningThreshold={0.8}
+                    criticalThreshold={0.95}
                   />
                 </div>
 
@@ -1288,7 +1427,7 @@ export function TTSWorkspace() {
                 hasPlayableAudio(selectedGeneration) ? (
                   <PlayerCard
                     generation={selectedGeneration}
-                    onReuse={() => applyGenerationToDraft(selectedGeneration)}
+                    onReuse={() => handleReuseWithCheck(selectedGeneration)}
                   />
                 ) : (
                   <div className="animate-fade-up rounded-2xl border border-border/50 bg-card/60 p-5 shadow-lg shadow-black/10 backdrop-blur-sm">
@@ -1328,8 +1467,8 @@ export function TTSWorkspace() {
               className="animate-fade-up"
               style={{ animationDelay: "0.2s" }}
             >
-              <div className="sticky top-20 space-y-4">
-                <div className="flex items-center justify-between">
+              <div className="flex flex-col lg:sticky lg:top-20 lg:h-[calc(100dvh-120px)] lg:min-h-128">
+                <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <History className="size-4 text-primary" />
                     <h2 className="text-sm font-semibold text-foreground">
@@ -1341,7 +1480,7 @@ export function TTSWorkspace() {
                   </span>
                 </div>
 
-                <div className="relative">
+                <div className="relative mb-4">
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/50" />
                   <Input
                     value={historyQuery}
@@ -1352,13 +1491,13 @@ export function TTSWorkspace() {
                 </div>
 
                 {historyError ? (
-                  <div className="rounded-xl border border-destructive/20 bg-destructive/8 px-3 py-2 text-sm text-destructive">
+                  <div className="rounded-xl border border-destructive/20 bg-destructive/8 px-3 py-2 text-sm text-destructive mb-4">
                     {historyError}
                   </div>
                 ) : null}
 
-                <div className="rounded-2xl border border-border/30 bg-card/40 backdrop-blur-sm">
-                  <ScrollArea className="h-[calc(100vh-280px)] min-h-75 p-2">
+                <div className="flex-1 min-h-0 rounded-2xl border border-border/30 bg-card/40 backdrop-blur-sm overflow-hidden flex flex-col">
+                  <ScrollArea className="flex-1 p-2">
                     <div className="space-y-1.5">
                       {isHistoryLoading ? (
                         <div className="flex items-center justify-center py-12">
@@ -1387,26 +1526,62 @@ export function TTSWorkspace() {
                         </div>
                       ) : null}
 
-                      {filteredHistory.map((entry) => (
+                      {paginatedHistory.map((entry) => (
                         <HistoryItem
                           key={entry.id}
                           entry={entry}
                           isSelected={
                             effectiveSelectedGenerationId === entry.id
                           }
-                          onSelect={() => setSelectedGenerationId(entry.id)}
+                          onSelect={() => {
+                            // Pause audio when switching history items
+                            document
+                              .querySelectorAll("audio")
+                              .forEach((audio) => {
+                                if (!audio.paused) audio.pause();
+                              });
+                            setSelectedGenerationId(entry.id);
+                          }}
                           onDelete={() => void handleDeleteGeneration(entry.id)}
-                          onReuse={() => applyGenerationToDraft(entry)}
+                          onReuse={() => handleReuseWithCheck(entry)}
                         />
                       ))}
                     </div>
                   </ScrollArea>
+
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                    itemsPerPage={itemsPerPage}
+                    totalItems={filteredHistory.length}
+                  />
                 </div>
               </div>
             </aside>
           </div>
         </div>
       </main>
+
+      {/* Unsaved Changes Dialog */}
+      <ConfirmDialog
+        open={showUnsavedDialog}
+        onOpenChange={setShowUnsavedDialog}
+        title="Unsaved Changes"
+        description={`You have ${text.length} characters of unsaved text. Reusing this draft will replace your current content.`}
+        onConfirm={handleConfirmReuse}
+        onCancel={() => {
+          setPendingGeneration(null);
+          setShowUnsavedDialog(false);
+        }}
+        confirmText="Replace & Continue"
+        cancelText="Keep Current"
+        variant="destructive"
+      />
     </div>
   );
+}
+
+export function TTSWorkspace() {
+  return <TTSWorkspaceContent />;
 }

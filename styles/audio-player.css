@@ -1,0 +1,159 @@
+@layer components {
+  .audio-player-container {
+    --audio-current-time: 0;
+    --audio-duration: 0;
+    --audio-progress: 0%;
+  }
+
+  .audio-progress-bar {
+    position: relative;
+    flex: 1;
+    height: 6px;
+    background: color-mix(in oklch, var(--muted) 65%, transparent);
+    border-radius: 9999px;
+    cursor: pointer;
+    overflow: hidden;
+    transition: height 0.2s ease;
+  }
+
+  .audio-progress-bar:hover {
+    height: 8px;
+  }
+
+  .audio-progress-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: var(--audio-progress);
+    background: var(--primary);
+    border-radius: 9999px;
+    will-change: width;
+    transform: translateZ(0);
+  }
+
+  .audio-play-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease;
+    box-shadow: 0 4px 14px -2px
+      color-mix(in oklch, var(--primary) 30%, transparent);
+  }
+
+  .audio-play-button:hover {
+    transform: scale(1.05);
+  }
+
+  .audio-play-button:active {
+    transform: scale(0.95);
+  }
+
+  .audio-play-button:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  .audio-time {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+    line-height: 1;
+    color: color-mix(in oklch, var(--muted-foreground) 80%, transparent);
+    min-width: 36px;
+    text-align: center;
+  }
+
+  .audio-element {
+    display: none;
+  }
+
+  .audio-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+  }
+
+  .audio-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .audio-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted-foreground);
+  }
+
+  .audio-meta-separator {
+    opacity: 0.5;
+  }
+
+  @keyframes audio-bar {
+    0%,
+    100% {
+      transform: scaleY(0.3);
+    }
+    50% {
+      transform: scaleY(1);
+    }
+  }
+
+  .audio-waveform {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 20px;
+  }
+
+  .audio-waveform-bar {
+    width: 3px;
+    background: var(--primary);
+    border-radius: 9999px;
+    animation: audio-bar 1.2s ease-in-out infinite;
+  }
+
+  .audio-waveform-bar:nth-child(1) {
+    animation-delay: 0s;
+    height: 40%;
+  }
+  .audio-waveform-bar:nth-child(2) {
+    animation-delay: 0.1s;
+    height: 70%;
+  }
+  .audio-waveform-bar:nth-child(3) {
+    animation-delay: 0.2s;
+    height: 100%;
+  }
+  .audio-waveform-bar:nth-child(4) {
+    animation-delay: 0.3s;
+    height: 60%;
+  }
+  .audio-waveform-bar:nth-child(5) {
+    animation-delay: 0.4s;
+    height: 80%;
+  }
+
+  .audio-player-container:not([data-playing="true"]) .audio-waveform-bar {
+    animation-play-state: paused;
+    opacity: 0.4;
+    transform: scaleY(0.3);
+  }
+}
