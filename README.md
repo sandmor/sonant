@@ -1,36 +1,123 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sonant
 
-## Getting Started
+A Payload + Next.js application for authenticated text-to-speech generation with:
 
-First, run the development server:
+- AWS Polly synthesis
+- S3-compatible audio storage with signed playback URLs
+- Per-user weekly character limits
+- Voice catalog sync from Polly
+- Generation history and playback UI
+
+## Stack
+
+- Next.js App Router
+- Payload CMS
+- AWS Polly (voice synthesis)
+- S3-compatible object storage (audio files)
+- Bun (package manager / runtime)
+
+## Prerequisites
+
+- Bun
+- PostgreSQL
+- S3-compatible bucket
+- AWS Polly access (AWS credentials or equivalent provider credentials)
+
+## Environment Variables
+
+Set these in `.env`.
+
+### Core App
+
+- `DATABASE_URL` (Postgres connection string)
+- `PAYLOAD_SECRET` (long random secret)
+
+### Admin Bootstrap (optional but recommended)
+
+- `ADMIN_EMAIL`
+
+If set, this email is treated as admin as a bootstrap fallback.
+Primary admin authorization is role-based (`users.role = admin`).
+
+### S3 Storage (required)
+
+- `S3_ENDPOINT`
+- `S3_REGION`
+- `S3_BUCKET`
+- `S3_ACCESS_KEY_ID`
+- `S3_SECRET_ACCESS_KEY`
+- `S3_FORCE_PATH_STYLE` (optional, defaults to `true` unless set to `false`)
+
+### Polly / AWS
+
+- `AWS_REGION` (optional, defaults to `us-east-1`)
+- `AWS_ACCESS_KEY_ID` (optional when using default AWS credential chain)
+- `AWS_SECRET_ACCESS_KEY` (optional when using default AWS credential chain)
+- `DEFAULT_POLLY_VOICE_ID` (optional, default: `Joanna`)
+
+### TTS Retention (optional)
+
+- `TTS_RETENTION_DAYS` (optional, default: `90`)
+
+This is a soft cleanup policy to avoid unbounded growth in history and storage.
+
+## Install
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+bun install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Run
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Development:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+bun run dev
+```
 
-## Learn More
+Production:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+bun run build
+bun run start
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+`dev` and `start` run `check:env` first and fail fast if required S3 variables are missing.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Scripts
 
-## Deploy on Vercel
+- `bun run dev` - start Next.js dev server (with env preflight)
+- `bun run build` - build production artifacts
+- `bun run start` - start production server (with env preflight)
+- `bun run lint` - run ESLint
+- `bun run check:env` - validate required runtime env vars
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## First-Time Setup
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Configure `.env` with all required variables.
+2. Start the app with `bun run dev`.
+3. Create your first user via the UI.
+4. If you need immediate admin access:
+
+- Set that account email as `ADMIN_EMAIL`, or
+- Set the user `role` field to `admin` in Payload.
+
+## Data Model Overview
+
+### users
+
+- Auth collection
+- `role`: `user | admin`
+- `weeklyCharacterLimit`: per-user UTC weekly quota
+
+### voices
+
+- Synced/stored voice catalog
+- Provider metadata (`source`, `sourceVoiceId`, locale, engines)
+- `isActive`, `isDefault`
+
+### tts-generations
+
+- Per-generation immutable metadata
+- Input text, selected voice snapshot, audio storage key, char count
+- Access model: owner-or-admin for read/delete

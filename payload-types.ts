@@ -13,53 +13,53 @@
  * via the `definition` "supportedTimezones".
  */
 export type SupportedTimezones =
-  | 'Pacific/Midway'
-  | 'Pacific/Niue'
-  | 'Pacific/Honolulu'
-  | 'Pacific/Rarotonga'
-  | 'America/Anchorage'
-  | 'Pacific/Gambier'
-  | 'America/Los_Angeles'
-  | 'America/Tijuana'
-  | 'America/Denver'
-  | 'America/Phoenix'
-  | 'America/Chicago'
-  | 'America/Guatemala'
-  | 'America/New_York'
-  | 'America/Bogota'
-  | 'America/Caracas'
-  | 'America/Santiago'
-  | 'America/Buenos_Aires'
-  | 'America/Sao_Paulo'
-  | 'Atlantic/South_Georgia'
-  | 'Atlantic/Azores'
-  | 'Atlantic/Cape_Verde'
-  | 'Europe/London'
-  | 'Europe/Berlin'
-  | 'Africa/Lagos'
-  | 'Europe/Athens'
-  | 'Africa/Cairo'
-  | 'Europe/Moscow'
-  | 'Asia/Riyadh'
-  | 'Asia/Dubai'
-  | 'Asia/Baku'
-  | 'Asia/Karachi'
-  | 'Asia/Tashkent'
-  | 'Asia/Calcutta'
-  | 'Asia/Dhaka'
-  | 'Asia/Almaty'
-  | 'Asia/Jakarta'
-  | 'Asia/Bangkok'
-  | 'Asia/Shanghai'
-  | 'Asia/Singapore'
-  | 'Asia/Tokyo'
-  | 'Asia/Seoul'
-  | 'Australia/Brisbane'
-  | 'Australia/Sydney'
-  | 'Pacific/Guam'
-  | 'Pacific/Noumea'
-  | 'Pacific/Auckland'
-  | 'Pacific/Fiji';
+  | "Pacific/Midway"
+  | "Pacific/Niue"
+  | "Pacific/Honolulu"
+  | "Pacific/Rarotonga"
+  | "America/Anchorage"
+  | "Pacific/Gambier"
+  | "America/Los_Angeles"
+  | "America/Tijuana"
+  | "America/Denver"
+  | "America/Phoenix"
+  | "America/Chicago"
+  | "America/Guatemala"
+  | "America/New_York"
+  | "America/Bogota"
+  | "America/Caracas"
+  | "America/Santiago"
+  | "America/Buenos_Aires"
+  | "America/Sao_Paulo"
+  | "Atlantic/South_Georgia"
+  | "Atlantic/Azores"
+  | "Atlantic/Cape_Verde"
+  | "Europe/London"
+  | "Europe/Berlin"
+  | "Africa/Lagos"
+  | "Europe/Athens"
+  | "Africa/Cairo"
+  | "Europe/Moscow"
+  | "Asia/Riyadh"
+  | "Asia/Dubai"
+  | "Asia/Baku"
+  | "Asia/Karachi"
+  | "Asia/Tashkent"
+  | "Asia/Calcutta"
+  | "Asia/Dhaka"
+  | "Asia/Almaty"
+  | "Asia/Jakarta"
+  | "Asia/Bangkok"
+  | "Asia/Shanghai"
+  | "Asia/Singapore"
+  | "Asia/Tokyo"
+  | "Asia/Seoul"
+  | "Australia/Brisbane"
+  | "Australia/Sydney"
+  | "Pacific/Guam"
+  | "Pacific/Noumea"
+  | "Pacific/Auckland"
+  | "Pacific/Fiji";
 
 export interface Config {
   auth: {
@@ -68,18 +68,34 @@ export interface Config {
   blocks: {};
   collections: {
     users: User;
-    'payload-kv': PayloadKv;
-    'payload-locked-documents': PayloadLockedDocument;
-    'payload-preferences': PayloadPreference;
-    'payload-migrations': PayloadMigration;
+    voices: Voice;
+    "tts-audio": TtsAudio;
+    "tts-generations": TtsGeneration;
+    "tts-weekly-usage": TtsWeeklyUsage;
+    "payload-kv": PayloadKv;
+    "payload-locked-documents": PayloadLockedDocument;
+    "payload-preferences": PayloadPreference;
+    "payload-migrations": PayloadMigration;
   };
   collectionsJoins: {};
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
-    'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
-    'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
-    'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
-    'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
+    voices: VoicesSelect<false> | VoicesSelect<true>;
+    "tts-audio": TtsAudioSelect<false> | TtsAudioSelect<true>;
+    "tts-generations": TtsGenerationsSelect<false> | TtsGenerationsSelect<true>;
+    "tts-weekly-usage":
+      | TtsWeeklyUsageSelect<false>
+      | TtsWeeklyUsageSelect<true>;
+    "payload-kv": PayloadKvSelect<false> | PayloadKvSelect<true>;
+    "payload-locked-documents":
+      | PayloadLockedDocumentsSelect<false>
+      | PayloadLockedDocumentsSelect<true>;
+    "payload-preferences":
+      | PayloadPreferencesSelect<false>
+      | PayloadPreferencesSelect<true>;
+    "payload-migrations":
+      | PayloadMigrationsSelect<false>
+      | PayloadMigrationsSelect<true>;
   };
   db: {
     defaultIDType: number;
@@ -121,6 +137,14 @@ export interface UserAuthOperations {
  */
 export interface User {
   id: number;
+  /**
+   * Administrative role used for privileged console actions.
+   */
+  role: "user" | "admin";
+  /**
+   * Maximum number of synthesized characters this user can consume per UTC week.
+   */
+  weeklyCharacterLimit: number;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -138,7 +162,92 @@ export interface User {
       }[]
     | null;
   password?: string | null;
-  collection: 'users';
+  collection: "users";
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "voices".
+ */
+export interface Voice {
+  id: number;
+  name: string;
+  source: "aws-polly" | "other";
+  sourceVoiceId: string;
+  sourceKey: string;
+  sourceName: string;
+  languageCode: string;
+  languageName: string;
+  gender: "female" | "male" | "neutral" | "unknown";
+  engines?:
+    | ("standard" | "neural" | "long-form" | "generative" | "other")[]
+    | null;
+  isActive: boolean;
+  isDefault: boolean;
+  metadata?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tts-audio".
+ */
+export interface TtsAudio {
+  id: number;
+  user: number | User;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tts-generations".
+ */
+export interface TtsGeneration {
+  id: number;
+  user: number | User;
+  voice: number | Voice;
+  voiceSource: "aws-polly" | "other";
+  sourceVoiceId: string;
+  voiceName: string;
+  voiceLocale: string;
+  voiceEngine: "standard" | "neural" | "long-form" | "generative" | "other";
+  title: string;
+  inputText: string;
+  audio: number | TtsAudio;
+  audioMime: string;
+  audioByteLength: number;
+  charCount: number;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tts-weekly-usage".
+ */
+export interface TtsWeeklyUsage {
+  id: number;
+  user: number | User;
+  weekStart: string;
+  weekKey: string;
+  usedCharacters: number;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -163,13 +272,30 @@ export interface PayloadKv {
  */
 export interface PayloadLockedDocument {
   id: number;
-  document?: {
-    relationTo: 'users';
-    value: number | User;
-  } | null;
+  document?:
+    | ({
+        relationTo: "users";
+        value: number | User;
+      } | null)
+    | ({
+        relationTo: "voices";
+        value: number | Voice;
+      } | null)
+    | ({
+        relationTo: "tts-audio";
+        value: number | TtsAudio;
+      } | null)
+    | ({
+        relationTo: "tts-generations";
+        value: number | TtsGeneration;
+      } | null)
+    | ({
+        relationTo: "tts-weekly-usage";
+        value: number | TtsWeeklyUsage;
+      } | null);
   globalSlug?: string | null;
   user: {
-    relationTo: 'users';
+    relationTo: "users";
     value: number | User;
   };
   updatedAt: string;
@@ -182,7 +308,7 @@ export interface PayloadLockedDocument {
 export interface PayloadPreference {
   id: number;
   user: {
-    relationTo: 'users';
+    relationTo: "users";
     value: number | User;
   };
   key?: string | null;
@@ -214,6 +340,8 @@ export interface PayloadMigration {
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
+  role?: T;
+  weeklyCharacterLimit?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -230,6 +358,77 @@ export interface UsersSelect<T extends boolean = true> {
         createdAt?: T;
         expiresAt?: T;
       };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "voices_select".
+ */
+export interface VoicesSelect<T extends boolean = true> {
+  name?: T;
+  source?: T;
+  sourceVoiceId?: T;
+  sourceKey?: T;
+  sourceName?: T;
+  languageCode?: T;
+  languageName?: T;
+  gender?: T;
+  engines?: T;
+  isActive?: T;
+  isDefault?: T;
+  metadata?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tts-audio_select".
+ */
+export interface TtsAudioSelect<T extends boolean = true> {
+  user?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  url?: T;
+  thumbnailURL?: T;
+  filename?: T;
+  mimeType?: T;
+  filesize?: T;
+  width?: T;
+  height?: T;
+  focalX?: T;
+  focalY?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tts-generations_select".
+ */
+export interface TtsGenerationsSelect<T extends boolean = true> {
+  user?: T;
+  voice?: T;
+  voiceSource?: T;
+  sourceVoiceId?: T;
+  voiceName?: T;
+  voiceLocale?: T;
+  voiceEngine?: T;
+  title?: T;
+  inputText?: T;
+  audio?: T;
+  audioMime?: T;
+  audioByteLength?: T;
+  charCount?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tts-weekly-usage_select".
+ */
+export interface TtsWeeklyUsageSelect<T extends boolean = true> {
+  user?: T;
+  weekStart?: T;
+  weekKey?: T;
+  usedCharacters?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -279,7 +478,7 @@ export interface CollectionsWidget {
   data?: {
     [k: string]: unknown;
   };
-  width: 'full';
+  width: "full";
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -289,7 +488,6 @@ export interface Auth {
   [k: string]: unknown;
 }
 
-
-declare module 'payload' {
+declare module "payload" {
   export interface GeneratedTypes extends Config {}
 }
