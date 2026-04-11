@@ -46,6 +46,7 @@ import {
   deleteGenerationByID,
   fetchGenerationByID,
   fetchHistory,
+  fetchUsage,
   fetchVoices,
   generateAudio,
   getSessionUser,
@@ -63,8 +64,10 @@ import {
   type AuthUser,
   type Generation,
   type GenerationWithAudio,
+  type UsageData,
   type VoiceOption,
 } from "@/lib/tts/client";
+import { UsageIndicator } from "@/components/usage-indicator";
 
 function WaveformBars({
   count = 5,
@@ -553,6 +556,9 @@ export function TTSWorkspace() {
     number | null
   >(null);
 
+  const [usage, setUsage] = useState<UsageData | null>(null);
+  const [isUsageLoading, setIsUsageLoading] = useState(false);
+
   const voiceByKey = useMemo(() => {
     return new Map(
       voices.map((voice) => [
@@ -689,6 +695,25 @@ export function TTSWorkspace() {
     }
   }
 
+  async function loadUsage() {
+    setIsUsageLoading(true);
+
+    try {
+      const usageData = await fetchUsage();
+      setUsage(usageData);
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error as Error & { status?: number }).status === 401
+      ) {
+        setAuthUser(null);
+      }
+      // Silently fail - usage is not critical
+    } finally {
+      setIsUsageLoading(false);
+    }
+  }
+
   async function loadGenerationById(id: number) {
     setIsSelectedGenerationLoading(true);
     setSelectedGenerationLoadError(null);
@@ -763,7 +788,7 @@ export function TTSWorkspace() {
       return;
     }
 
-    void Promise.all([loadVoices(), loadHistory()]);
+    void Promise.all([loadVoices(), loadHistory(), loadUsage()]);
   }, [authUser]);
 
   useEffect(() => {
@@ -859,6 +884,9 @@ export function TTSWorkspace() {
       ]);
       setSelectedGenerationId(nextGeneration.id);
       toast.success("Audio generated successfully");
+
+      // Refresh usage data after successful generation
+      void loadUsage();
     } catch (error) {
       if (
         error instanceof Error &&
@@ -964,6 +992,10 @@ export function TTSWorkspace() {
                 Studio active
               </span>
             </div>
+
+            <div className="h-5 w-px bg-border/60" />
+
+            <UsageIndicator usage={usage} isLoading={isUsageLoading} />
 
             <div className="h-5 w-px bg-border/60" />
 

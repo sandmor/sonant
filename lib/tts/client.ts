@@ -4,6 +4,14 @@ export type AuthUser = {
   name?: string;
 };
 
+export type UsageData = {
+  usedCharacters: number;
+  characterLimit: number;
+  weekStart: string;
+  percentage: number;
+  remaining: number;
+};
+
 export type Generation = {
   id: number;
   title: string;

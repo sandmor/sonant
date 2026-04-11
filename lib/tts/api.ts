@@ -227,3 +227,38 @@ export async function deleteGenerationByID(id: number) {
     );
   }
 }
+
+export async function fetchUsage() {
+  const response = await fetch("/api/tts/usage", {
+    method: "GET",
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw makeHTTPError("Unauthorized", 401);
+    }
+
+    throw new Error(
+      await readErrorMessage(response, "Unable to load usage data"),
+    );
+  }
+
+  const payload = (await response.json()) as {
+    usedCharacters?: number;
+    characterLimit?: number;
+    weekStart?: string;
+    percentage?: number;
+    remaining?: number;
+  };
+
+  return {
+    usedCharacters:
+      typeof payload.usedCharacters === "number" ? payload.usedCharacters : 0,
+    characterLimit:
+      typeof payload.characterLimit === "number" ? payload.characterLimit : 0,
+    weekStart: typeof payload.weekStart === "string" ? payload.weekStart : "",
+    percentage: typeof payload.percentage === "number" ? payload.percentage : 0,
+    remaining: typeof payload.remaining === "number" ? payload.remaining : 0,
+  };
+}
