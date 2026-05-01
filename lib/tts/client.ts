@@ -7,6 +7,7 @@ export type AuthUser = {
 export type UsageData = {
   usedCharacters: number;
   characterLimit: number;
+  maxCharactersPerRequest: number;
   weekStart: string;
   percentage: number;
   remaining: number;

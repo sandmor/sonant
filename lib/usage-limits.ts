@@ -1,7 +1,10 @@
 export const DEFAULT_WEEKLY_CHARACTER_LIMIT = 100_000;
+export const DEFAULT_MAX_CHARACTERS_PER_REQUEST = 3000;
+export const ABSOLUTE_MAX_TTS_REQUEST_CHARACTERS = 1_000_000;
 
-export type WeeklyUsageLimits = {
-  characterLimit: number;
+export type UsageLimits = {
+  weeklyCharacterLimit: number;
+  maxCharactersPerRequest: number;
 };
 
 export function getCurrentWeekStartUTC(now = new Date()) {
@@ -22,13 +25,35 @@ function normalizeLimitValue(value: unknown, fallback: number) {
   return Math.max(0, Math.floor(value));
 }
 
-export function resolveWeeklyLimitsFromUser(user: {
-  weeklyCharacterLimit?: unknown;
+export function resolveLimitsFromUser(user: {
+  tier?:
+    | unknown
+    | { weeklyCharacterLimit?: number; maxCharactersPerRequest?: number };
 }) {
+  let weekly = DEFAULT_WEEKLY_CHARACTER_LIMIT;
+  let request = DEFAULT_MAX_CHARACTERS_PER_REQUEST;
+
+  if (user && typeof user.tier === "object" && user.tier !== null) {
+    const tier = user.tier as {
+      weeklyCharacterLimit?: number;
+      maxCharactersPerRequest?: number;
+    };
+    if (typeof tier.weeklyCharacterLimit === "number") {
+      weekly = tier.weeklyCharacterLimit;
+    }
+    if (typeof tier.maxCharactersPerRequest === "number") {
+      request = tier.maxCharactersPerRequest;
+    }
+  }
+
   return {
-    characterLimit: normalizeLimitValue(
-      user.weeklyCharacterLimit,
+    weeklyCharacterLimit: normalizeLimitValue(
+      weekly,
       DEFAULT_WEEKLY_CHARACTER_LIMIT,
     ),
-  } satisfies WeeklyUsageLimits;
+    maxCharactersPerRequest: normalizeLimitValue(
+      request,
+      DEFAULT_MAX_CHARACTERS_PER_REQUEST,
+    ),
+  } satisfies UsageLimits;
 }

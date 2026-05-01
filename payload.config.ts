@@ -6,11 +6,13 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { resendAdapter } from "@payloadcms/email-resend";
 
+import { Admins } from "./collections/admins";
 import { Users } from "./collections/users";
 import { Voices } from "./collections/voices";
 import { TTSAudio } from "./collections/tts-audio";
 import { TTSGenerations } from "./collections/tts-generations";
 import { TTSWeeklyUsage } from "./collections/tts-weekly-usage";
+import { Tiers } from "./collections/tiers";
 import { syncPollyVoices } from "./lib/polly/sync-voices";
 import { runTTSSoftRetentionCleanupIfDue } from "./lib/retention/tts-retention";
 import { getRequiredS3Config } from "./lib/server/env";
@@ -33,7 +35,7 @@ export default buildConfig({
   secret: process.env.PAYLOAD_SECRET || "",
   serverURL: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
   admin: {
-    user: "users",
+    user: "admins",
   },
   editor: lexicalEditor({}),
   graphQL: {
@@ -43,9 +45,18 @@ export default buildConfig({
     pool: {
       connectionString: process.env.DATABASE_URL || "",
     },
+    migrationDir: path.resolve(dirname, "migrations"),
   }),
   email: emailAdapter,
-  collections: [Users, Voices, TTSAudio, TTSGenerations, TTSWeeklyUsage],
+  collections: [
+    Admins,
+    Users,
+    Voices,
+    TTSAudio,
+    TTSGenerations,
+    TTSWeeklyUsage,
+    Tiers,
+  ],
   plugins: [
     s3Storage({
       collections: {
@@ -68,6 +79,29 @@ export default buildConfig({
     }),
   ],
   onInit: async (payload) => {
+    const defaultTiers = await payload.find({
+      collection: "tiers",
+      where: {
+        isDefault: {
+          equals: true,
+        },
+      },
+      limit: 1,
+    });
+
+    if (defaultTiers.totalDocs === 0) {
+      await payload.create({
+        collection: "tiers",
+        data: {
+          name: "Basic Tier",
+          weeklyCharacterLimit: 15000,
+          maxCharactersPerRequest: 3000,
+          isDefault: true,
+        },
+      });
+      payload.logger.info("Seeded default Tier.");
+    }
+
     const result = await syncPollyVoices(payload);
 
     if (result.error) {

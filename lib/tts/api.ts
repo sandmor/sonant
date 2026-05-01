@@ -306,6 +306,7 @@ export async function fetchUsage() {
   const payload = (await response.json()) as {
     usedCharacters?: number;
     characterLimit?: number;
+    maxCharactersPerRequest?: number;
     weekStart?: string;
     percentage?: number;
     remaining?: number;
@@ -316,6 +317,10 @@ export async function fetchUsage() {
       typeof payload.usedCharacters === "number" ? payload.usedCharacters : 0,
     characterLimit:
       typeof payload.characterLimit === "number" ? payload.characterLimit : 0,
+    maxCharactersPerRequest:
+      typeof payload.maxCharactersPerRequest === "number"
+        ? payload.maxCharactersPerRequest
+        : 0,
     weekStart: typeof payload.weekStart === "string" ? payload.weekStart : "",
     percentage: typeof payload.percentage === "number" ? payload.percentage : 0,
     remaining: typeof payload.remaining === "number" ? payload.remaining : 0,

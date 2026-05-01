@@ -12,8 +12,9 @@ import {
   type VoiceSource,
 } from "@/lib/voices";
 import {
+  ABSOLUTE_MAX_TTS_REQUEST_CHARACTERS,
   getCurrentWeekStartUTC,
-  resolveWeeklyLimitsFromUser,
+  resolveLimitsFromUser,
 } from "@/lib/usage-limits";
 import { withUserQuotaLock } from "@/lib/server/quota-lock";
 import { runTTSSoftRetentionCleanupIfDue } from "@/lib/retention/tts-retention";
@@ -25,7 +26,10 @@ const ttsRequestSchema = z.object({
     .string()
     .trim()
     .min(1, "Text is required")
-    .max(3000, "Text must be 3000 characters or fewer"),
+    .max(
+      ABSOLUTE_MAX_TTS_REQUEST_CHARACTERS,
+      `Text must be ${ABSOLUTE_MAX_TTS_REQUEST_CHARACTERS.toLocaleString()} characters or fewer`,
+    ),
   voiceSource: z
     .enum(VOICE_SOURCE_VALUES)
     .optional()
@@ -236,7 +240,7 @@ export async function POST(req: Request) {
     const payload = await getPayload({ config: configPromise });
     const { user } = await payload.auth({ headers: req.headers });
 
-    if (!user) {
+    if (!user || user.collection !== "users") {
       return new Response("Unauthorized. Please log in.", {
         status: 401,
       });
@@ -278,15 +282,33 @@ export async function POST(req: Request) {
       collection: "users",
       id: user.id,
       overrideAccess: true,
-      depth: 0,
+      depth: 1,
       select: {
-        weeklyCharacterLimit: true,
+        tier: true,
       },
     });
 
-    const { characterLimit } = resolveWeeklyLimitsFromUser({
-      weeklyCharacterLimit: limitSource.weeklyCharacterLimit,
-    });
+    const limits = resolveLimitsFromUser({ tier: limitSource.tier });
+
+    if (
+      typeof limits.maxCharactersPerRequest === "number" &&
+      limits.maxCharactersPerRequest > 0 &&
+      text.length > limits.maxCharactersPerRequest
+    ) {
+      return Response.json(
+        {
+          message: `Text must be ${limits.maxCharactersPerRequest.toLocaleString()} characters or fewer`,
+          limits: {
+            maxCharactersPerRequest: limits.maxCharactersPerRequest,
+            requestedCharacters: text.length,
+          },
+        },
+        { status: 400 },
+      );
+    }
+
+    const { weeklyCharacterLimit: characterLimit } = limits;
+    const hasWeeklyCharacterLimit = characterLimit > 0;
 
     const selectedVoice = await resolveVoice(
       payload,
@@ -323,7 +345,10 @@ export async function POST(req: Request) {
 
       // Keep quota gating ahead of synthesis so over-limit requests fail fast
       // without triggering third-party generation or storage writes.
-      if (usedCharacterCount + text.length > characterLimit) {
+      if (
+        hasWeeklyCharacterLimit &&
+        usedCharacterCount + text.length > characterLimit
+      ) {
         return {
           quotaExceeded: true as const,
           usedCharacterCount,

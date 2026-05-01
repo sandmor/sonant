@@ -1,8 +1,8 @@
 import type { Access } from "payload";
 
 type AccessUser = {
+  collection?: string | null;
   email?: string | null;
-  role?: string | null;
 };
 
 export function isAdminUser(user?: AccessUser | null) {
@@ -10,17 +10,11 @@ export function isAdminUser(user?: AccessUser | null) {
     return false;
   }
 
-  if (user.role === "admin") {
+  if (user.collection === "admins") {
     return true;
   }
 
-  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
-
-  if (!adminEmail) {
-    return false;
-  }
-
-  return user.email?.toLowerCase() === adminEmail;
+  return false;
 }
 
 export const isAdmin: Access = ({ req: { user } }) => isAdminUser(user);

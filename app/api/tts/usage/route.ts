@@ -3,7 +3,7 @@ import configPromise from "@payload-config";
 
 import {
   getCurrentWeekStartUTC,
-  resolveWeeklyLimitsFromUser,
+  resolveLimitsFromUser,
 } from "@/lib/usage-limits";
 
 export async function GET(req: Request) {
@@ -11,7 +11,7 @@ export async function GET(req: Request) {
     const payload = await getPayload({ config: configPromise });
     const { user } = await payload.auth({ headers: req.headers });
 
-    if (!user) {
+    if (!user || user.collection !== "users") {
       return Response.json({ message: "Unauthorized" }, { status: 401 });
     }
 
@@ -20,15 +20,18 @@ export async function GET(req: Request) {
       collection: "users",
       id: user.id,
       overrideAccess: true,
-      depth: 0,
+      depth: 1,
       select: {
-        weeklyCharacterLimit: true,
+        tier: true,
       },
     });
 
-    const { characterLimit } = resolveWeeklyLimitsFromUser({
-      weeklyCharacterLimit: userDoc.weeklyCharacterLimit,
+    const limits = resolveLimitsFromUser({
+      tier: userDoc.tier,
     });
+
+    const characterLimit = limits.weeklyCharacterLimit;
+    const maxCharactersPerRequest = limits.maxCharactersPerRequest;
 
     // Get current week's usage
     const weekStart = getCurrentWeekStartUTC();
@@ -55,18 +58,21 @@ export async function GET(req: Request) {
         ? usageResult.docs[0].usedCharacters
         : 0;
 
-    const remaining = Math.max(0, characterLimit - usedCharacters);
-    const percentage =
-      characterLimit > 0
-        ? Math.min(100, (usedCharacters / characterLimit) * 100)
-        : 0;
+    const hasWeeklyCharacterLimit = characterLimit > 0;
+    const remaining = hasWeeklyCharacterLimit
+      ? Math.max(0, characterLimit - usedCharacters)
+      : 0;
+    const percentage = hasWeeklyCharacterLimit
+      ? Math.min(100, (usedCharacters / characterLimit) * 100)
+      : 0;
 
     return Response.json(
       {
         usedCharacters,
         characterLimit,
+        maxCharactersPerRequest,
         weekStart: weekStartISO,
-        percentage: Math.round(percentage * 10) / 10, // Round to 1 decimal
+        percentage: Math.round(percentage * 10) / 10,
         remaining,
       },
       { status: 200 },

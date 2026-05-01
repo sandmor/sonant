@@ -25,7 +25,7 @@ async function findGenerationById(
   const payload = await getPayload({ config: configPromise });
   const { user } = await payload.auth({ headers: req.headers });
 
-  if (!user) {
+  if (!user || user.collection !== "users") {
     return { payload, user: null, generation: null };
   }
 

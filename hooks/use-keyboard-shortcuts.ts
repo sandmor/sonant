@@ -20,6 +20,14 @@ export function useKeyboardShortcuts(shortcuts: Shortcut[]) {
         (event.target instanceof HTMLElement && event.target.isContentEditable);
 
       for (const shortcut of shortcuts) {
+        if (!shortcut || typeof shortcut.key !== "string") {
+          continue;
+        }
+
+        if (typeof event.key !== "string") {
+          continue;
+        }
+
         // Avoid single-key shortcuts while typing unless allowed or has modifier
         if (isTypingTarget && !shortcut.allowInInput && !shortcut.modifier) {
           continue;

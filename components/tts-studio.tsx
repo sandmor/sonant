@@ -645,6 +645,12 @@ function TTSWorkspaceContent() {
   const [usage, setUsage] = useState<UsageData | null>(null);
   const [isUsageLoading, setIsUsageLoading] = useState(false);
 
+  const maxCharactersPerRequest =
+    typeof usage?.maxCharactersPerRequest === "number" &&
+    Number.isFinite(usage.maxCharactersPerRequest)
+      ? Math.max(0, Math.floor(usage.maxCharactersPerRequest))
+      : null;
+
   const voiceByKey = useMemo(() => {
     return new Map(
       voices.map((voice) => [
@@ -885,6 +891,7 @@ function TTSWorkspaceContent() {
   useEffect(() => {
     if (!authUser) {
       setHistory([]);
+      setUsage(null);
       setVoices([]);
       setVoiceId("");
       setSelectedGenerationId(null);
@@ -1381,7 +1388,12 @@ function TTSWorkspaceContent() {
                     id="tts-text"
                     required
                     minLength={1}
-                    maxLength={3000}
+                    maxLength={
+                      typeof maxCharactersPerRequest === "number" &&
+                      maxCharactersPerRequest > 0
+                        ? maxCharactersPerRequest
+                        : undefined
+                    }
                     placeholder="Write your narration, podcast copy, ad script, or social content…"
                     className="min-h-40 rounded-xl border-border/40 bg-card/60 p-4 text-[15px] leading-relaxed backdrop-blur-sm placeholder:text-muted-foreground/40 focus-visible:bg-card/80 sm:min-h-48"
                     value={text}
@@ -1389,7 +1401,7 @@ function TTSWorkspaceContent() {
                   />
                   <CharacterCounter
                     current={text.length}
-                    max={3000}
+                    max={maxCharactersPerRequest}
                     warningThreshold={0.8}
                     criticalThreshold={0.95}
                   />

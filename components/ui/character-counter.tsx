@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 interface CharacterCounterProps {
   current: number;
-  max: number;
+  max?: number | null;
   warningThreshold?: number;
   criticalThreshold?: number;
   className?: string;
@@ -18,10 +18,11 @@ export function CharacterCounter({
   criticalThreshold = 0.95,
   className,
 }: CharacterCounterProps) {
-  const percentage = Math.min(current / max, 1);
-  const isWarning = percentage >= warningThreshold;
-  const isCritical = percentage >= criticalThreshold;
-  const isAtLimit = current >= max;
+  const hasMax = typeof max === "number" && Number.isFinite(max) && max > 0;
+  const percentage = hasMax ? Math.min(current / max, 1) : 0;
+  const isWarning = hasMax && percentage >= warningThreshold;
+  const isCritical = hasMax && percentage >= criticalThreshold;
+  const isAtLimit = hasMax && current >= max;
 
   // Determine color based on state
   const getColorClass = () => {
@@ -44,27 +45,40 @@ export function CharacterCounter({
       aria-live="polite"
       aria-atomic="true"
     >
-      <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
-        <div
+      {hasMax ? (
+        <>
+          <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+            <div
+              className={cn(
+                "h-full rounded-full transition-all duration-300 ease-out",
+                getColorClass(),
+              )}
+              style={{ width: `${percentage * 100}%` }}
+              aria-hidden="true"
+            />
+          </div>
+          <span
+            className={cn(
+              "tabular-nums font-medium whitespace-nowrap transition-colors duration-200",
+              getTextColorClass(),
+            )}
+          >
+            {current.toLocaleString()}
+            <span className="text-muted-foreground/60">
+              /{max.toLocaleString()}
+            </span>
+          </span>
+        </>
+      ) : (
+        <span
           className={cn(
-            "h-full rounded-full transition-all duration-300 ease-out",
-            getColorClass(),
+            "tabular-nums font-medium whitespace-nowrap transition-colors duration-200 text-muted-foreground",
           )}
-          style={{ width: `${percentage * 100}%` }}
-          aria-hidden="true"
-        />
-      </div>
-      <span
-        className={cn(
-          "tabular-nums font-medium whitespace-nowrap transition-colors duration-200",
-          getTextColorClass(),
-        )}
-      >
-        {current.toLocaleString()}
-        <span className="text-muted-foreground/60">
-          /{max.toLocaleString()}
+        >
+          {current.toLocaleString()}
+          <span className="text-muted-foreground/60"> chars</span>
         </span>
-      </span>
+      )}
     </div>
   );
 }

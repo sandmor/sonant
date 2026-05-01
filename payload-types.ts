@@ -63,15 +63,18 @@ export type SupportedTimezones =
 
 export interface Config {
   auth: {
+    admins: AdminAuthOperations;
     users: UserAuthOperations;
   };
   blocks: {};
   collections: {
+    admins: Admin;
     users: User;
     voices: Voice;
     "tts-audio": TtsAudio;
     "tts-generations": TtsGeneration;
     "tts-weekly-usage": TtsWeeklyUsage;
+    tiers: Tier;
     "payload-kv": PayloadKv;
     "payload-locked-documents": PayloadLockedDocument;
     "payload-preferences": PayloadPreference;
@@ -79,6 +82,7 @@ export interface Config {
   };
   collectionsJoins: {};
   collectionsSelect: {
+    admins: AdminsSelect<false> | AdminsSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
     voices: VoicesSelect<false> | VoicesSelect<true>;
     "tts-audio": TtsAudioSelect<false> | TtsAudioSelect<true>;
@@ -86,6 +90,7 @@ export interface Config {
     "tts-weekly-usage":
       | TtsWeeklyUsageSelect<false>
       | TtsWeeklyUsageSelect<true>;
+    tiers: TiersSelect<false> | TiersSelect<true>;
     "payload-kv": PayloadKvSelect<false> | PayloadKvSelect<true>;
     "payload-locked-documents":
       | PayloadLockedDocumentsSelect<false>
@@ -107,10 +112,28 @@ export interface Config {
   widgets: {
     collections: CollectionsWidget;
   };
-  user: User;
+  user: Admin | User;
   jobs: {
     tasks: unknown;
     workflows: unknown;
+  };
+}
+export interface AdminAuthOperations {
+  forgotPassword: {
+    email: string;
+    password: string;
+  };
+  login: {
+    email: string;
+    password: string;
+  };
+  registerFirstUser: {
+    email: string;
+    password: string;
+  };
+  unlock: {
+    email: string;
+    password: string;
   };
 }
 export interface UserAuthOperations {
@@ -133,18 +156,39 @@ export interface UserAuthOperations {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "admins".
+ */
+export interface Admin {
+  id: number;
+  updatedAt: string;
+  createdAt: string;
+  email: string;
+  resetPasswordToken?: string | null;
+  resetPasswordExpiration?: string | null;
+  salt?: string | null;
+  hash?: string | null;
+  loginAttempts?: number | null;
+  lockUntil?: string | null;
+  sessions?:
+    | {
+        id: string;
+        createdAt?: string | null;
+        expiresAt: string;
+      }[]
+    | null;
+  password?: string | null;
+  collection: "admins";
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users".
  */
 export interface User {
   id: number;
   /**
-   * Administrative role used for privileged console actions.
+   * Tier determines the limits and capabilities of this user.
    */
-  role: "user" | "admin";
-  /**
-   * Maximum number of synthesized characters this user can consume per UTC week.
-   */
-  weeklyCharacterLimit: number;
+  tier?: (number | null) | Tier;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -165,6 +209,28 @@ export interface User {
     | null;
   password?: string | null;
   collection: "users";
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tiers".
+ */
+export interface Tier {
+  id: number;
+  name: string;
+  /**
+   * Maximum characters per week. Set to 0 for unlimited.
+   */
+  weeklyCharacterLimit: number;
+  /**
+   * Maximum characters per TTS request. Set to 0 for unlimited.
+   */
+  maxCharactersPerRequest: number;
+  /**
+   * Automatically assign this tier to new users.
+   */
+  isDefault?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -276,6 +342,10 @@ export interface PayloadLockedDocument {
   id: number;
   document?:
     | ({
+        relationTo: "admins";
+        value: number | Admin;
+      } | null)
+    | ({
         relationTo: "users";
         value: number | User;
       } | null)
@@ -294,12 +364,21 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: "tts-weekly-usage";
         value: number | TtsWeeklyUsage;
+      } | null)
+    | ({
+        relationTo: "tiers";
+        value: number | Tier;
       } | null);
   globalSlug?: string | null;
-  user: {
-    relationTo: "users";
-    value: number | User;
-  };
+  user:
+    | {
+        relationTo: "admins";
+        value: number | Admin;
+      }
+    | {
+        relationTo: "users";
+        value: number | User;
+      };
   updatedAt: string;
   createdAt: string;
 }
@@ -309,10 +388,15 @@ export interface PayloadLockedDocument {
  */
 export interface PayloadPreference {
   id: number;
-  user: {
-    relationTo: "users";
-    value: number | User;
-  };
+  user:
+    | {
+        relationTo: "admins";
+        value: number | Admin;
+      }
+    | {
+        relationTo: "users";
+        value: number | User;
+      };
   key?: string | null;
   value?:
     | {
@@ -339,11 +423,32 @@ export interface PayloadMigration {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "admins_select".
+ */
+export interface AdminsSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  email?: T;
+  resetPasswordToken?: T;
+  resetPasswordExpiration?: T;
+  salt?: T;
+  hash?: T;
+  loginAttempts?: T;
+  lockUntil?: T;
+  sessions?:
+    | T
+    | {
+        id?: T;
+        createdAt?: T;
+        expiresAt?: T;
+      };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
-  role?: T;
-  weeklyCharacterLimit?: T;
+  tier?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -431,6 +536,18 @@ export interface TtsWeeklyUsageSelect<T extends boolean = true> {
   weekStart?: T;
   weekKey?: T;
   usedCharacters?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tiers_select".
+ */
+export interface TiersSelect<T extends boolean = true> {
+  name?: T;
+  weeklyCharacterLimit?: T;
+  maxCharactersPerRequest?: T;
+  isDefault?: T;
   updatedAt?: T;
   createdAt?: T;
 }

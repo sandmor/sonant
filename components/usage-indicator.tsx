@@ -37,6 +37,7 @@ export function UsageIndicator({
   }
 
   const { usedCharacters, characterLimit, percentage } = usage;
+  const isUnlimited = characterLimit === 0;
   const isWarning = percentage >= 70;
   const isCritical = percentage >= 90;
 
@@ -45,18 +46,22 @@ export function UsageIndicator({
       <Gauge className="size-3.5 text-muted-foreground/70" />
 
       <div className="flex flex-col gap-1">
-        <div className="relative h-1.5 w-24 overflow-hidden rounded-full bg-muted/50">
-          <div
-            className={cn(
-              "h-full rounded-full transition-all duration-500 ease-out",
-              getUsageColor(percentage),
-              isWarning && getUsageGlowClass(percentage),
-            )}
-            style={{
-              width: `${Math.min(100, percentage)}%`,
-            }}
-          />
-        </div>
+        {!isUnlimited ? (
+          <div className="relative h-1.5 w-24 overflow-hidden rounded-full bg-muted/50">
+            <div
+              className={cn(
+                "h-full rounded-full transition-all duration-500 ease-out",
+                getUsageColor(percentage),
+                isWarning && getUsageGlowClass(percentage),
+              )}
+              style={{
+                width: `${Math.min(100, percentage)}%`,
+              }}
+            />
+          </div>
+        ) : (
+          <div className="h-1.5 w-24 rounded-full bg-muted/30" />
+        )}
 
         <div className="flex items-center gap-1 text-[11px] leading-none">
           <span
@@ -73,14 +78,14 @@ export function UsageIndicator({
           </span>
           <span className="text-muted-foreground/50">/</span>
           <span className="tabular-nums text-muted-foreground">
-            {characterLimit.toLocaleString()}
+            {isUnlimited ? "Unlimited" : characterLimit.toLocaleString()}
           </span>
           <span className="text-muted-foreground/60">chars</span>
         </div>
       </div>
 
       {/* Pulse indicator for critical/warning states */}
-      {(isWarning || isCritical) && (
+      {!isUnlimited && (isWarning || isCritical) && (
         <span
           className={cn(
             "size-1.5 rounded-full animate-pulse-glow",

@@ -1,6 +1,7 @@
 import type { Access, CollectionConfig } from "payload";
 
 import { VOICE_SOURCE_VALUES } from "@/lib/voices";
+import { ABSOLUTE_MAX_TTS_REQUEST_CHARACTERS } from "@/lib/usage-limits";
 
 import { isAdmin, isAdminUser } from "./access";
 
@@ -165,7 +166,7 @@ export const TTSGenerations: CollectionConfig = {
       name: "inputText",
       type: "textarea",
       required: true,
-      maxLength: 3000,
+      maxLength: ABSOLUTE_MAX_TTS_REQUEST_CHARACTERS,
     },
     {
       name: "audio",

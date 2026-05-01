@@ -32,13 +32,6 @@ Set these in `.env`.
 - `DATABASE_URL` (Postgres connection string)
 - `PAYLOAD_SECRET` (long random secret)
 
-### Admin Bootstrap (optional but recommended)
-
-- `ADMIN_EMAIL`
-
-If set, this email is treated as admin as a bootstrap fallback.
-Primary admin authorization is role-based (`users.role = admin`).
-
 ### S3 Storage (required)
 
 - `S3_ENDPOINT`
@@ -104,19 +97,20 @@ bun run start
 
 1. Configure `.env` with all required variables.
 2. Start the app with `bun run dev`.
-3. Create your first user via the UI.
-4. If you need immediate admin access:
-
-- Set that account email as `ADMIN_EMAIL`, or
-- Set the user `role` field to `admin` in Payload.
+3. Open the admin UI and create your first `admins` account.
+4. End-user accounts continue to register through the public `users` auth API.
 
 ## Data Model Overview
 
+### admins
+
+- Auth collection used only for Payload admin access
+- Any authenticated `admins` document can access the admin panel
+
 ### users
 
-- Auth collection
-- `role`: `user | admin`
-- `weeklyCharacterLimit`: per-user UTC weekly quota
+- Auth collection used for product/customer accounts
+- `tier`: relationship to the user's plan/limits
 
 ### voices
 
