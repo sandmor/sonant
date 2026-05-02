@@ -1,4 +1,4 @@
-export const VOICE_SOURCE_VALUES = ["aws-polly", "other"] as const;
+export const VOICE_SOURCE_VALUES = ["aws-polly", "qwen", "other"] as const;
 export type VoiceSource = (typeof VOICE_SOURCE_VALUES)[number];
 
 export const DEFAULT_VOICE_SOURCE: VoiceSource = "aws-polly";
@@ -39,6 +39,8 @@ export function getSourceLabel(source: string) {
   switch (source) {
     case "aws-polly":
       return "AWS Polly";
+    case "qwen":
+      return "Qwen";
     default:
       return source;
   }

@@ -5,39 +5,11 @@ import { syncPollyVoices } from "@/lib/polly/sync-voices";
 import { isAdmin, isAuthenticated } from "./access";
 import { isAdminUser } from "./access";
 
-const sourceOptions = [
-  { label: "AWS Polly", value: "aws-polly" },
-  { label: "Other", value: "other" },
-];
-
-const genderOptions = [
-  { label: "Female", value: "female" },
-  { label: "Male", value: "male" },
-  { label: "Neutral", value: "neutral" },
-  { label: "Unknown", value: "unknown" },
-];
-
-const engineOptions = [
-  { label: "Standard", value: "standard" },
-  { label: "Neural", value: "neural" },
-  { label: "Long-form", value: "long-form" },
-  { label: "Generative", value: "generative" },
-  { label: "Other", value: "other" },
-];
-
 export const Voices: CollectionConfig = {
   slug: "voices",
   admin: {
     useAsTitle: "name",
-    defaultColumns: [
-      "name",
-      "source",
-      "sourceVoiceId",
-      "languageCode",
-      "gender",
-      "isActive",
-      "isDefault",
-    ],
+    defaultColumns: ["name", "sourceRecord", "isActive", "isDefault"],
     components: {
       beforeList: [
         "@/components/payload/sync-voices-control#SyncVoicesControl",
@@ -52,47 +24,50 @@ export const Voices: CollectionConfig = {
   },
   hooks: {
     beforeValidate: [
-      ({ data }) => {
+      async ({ data, req }) => {
         if (!data || typeof data !== "object") {
           return data;
         }
 
-        const source =
-          typeof data.source === "string" ? data.source.trim() : undefined;
-        const sourceVoiceId =
-          typeof data.sourceVoiceId === "string"
-            ? data.sourceVoiceId.trim()
-            : undefined;
-
-        if (!source || !sourceVoiceId) {
-          return data;
+        // Auto-populate name if it is not provided
+        if (!data.name && data.sourceRecord) {
+          const relation = data.sourceRecord as { relationTo: string; value: string | number };
+          if (relation && relation.relationTo && relation.value) {
+            const relatedDoc = await req.payload.findByID({
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              collection: relation.relationTo as any,
+              id: relation.value,
+              depth: 0,
+            });
+            if (relatedDoc && relatedDoc.name) {
+              return {
+                ...data,
+                name: relatedDoc.name,
+              };
+            }
+          }
         }
 
-        return {
-          ...data,
-          sourceKey: `${source}:${sourceVoiceId}`,
-        };
+        return data;
       },
     ],
     afterChange: [
       async ({ doc, req }) => {
-        if (!doc.isDefault || typeof doc.source !== "string") {
+        if (!doc.isDefault || !doc.sourceRecord?.relationTo) {
           return;
         }
 
+        const relationTo = doc.sourceRecord.relationTo;
+
         while (true) {
-          const othersMarkedDefault = await req.payload.find({
+          // We must manually filter since querying polymorphic relations might have limits
+          const othersMarkedDefaultRaw = await req.payload.find({
             collection: "voices",
             where: {
               and: [
                 {
                   id: {
                     not_equals: doc.id,
-                  },
-                },
-                {
-                  source: {
-                    equals: doc.source,
                   },
                 },
                 {
@@ -107,12 +82,17 @@ export const Voices: CollectionConfig = {
             overrideAccess: true,
           });
 
-          if (othersMarkedDefault.docs.length === 0) {
+          // Filter manually
+          const othersMarkedDefault = othersMarkedDefaultRaw.docs.filter(
+            (v) => v.sourceRecord?.relationTo === relationTo
+          );
+
+          if (othersMarkedDefault.length === 0) {
             break;
           }
 
           await Promise.all(
-            othersMarkedDefault.docs.map((voice) =>
+            othersMarkedDefault.map((voice) =>
               req.payload.update({
                 collection: "voices",
                 id: voice.id,
@@ -163,64 +143,17 @@ export const Voices: CollectionConfig = {
     {
       name: "name",
       type: "text",
-      required: true,
+      required: false,
       maxLength: 120,
-    },
-    {
-      name: "source",
-      type: "select",
-      required: true,
-      defaultValue: "aws-polly",
-      options: sourceOptions,
-    },
-    {
-      name: "sourceVoiceId",
-      label: "Provider Voice ID",
-      type: "text",
-      required: true,
-      maxLength: 160,
-    },
-    {
-      name: "sourceKey",
-      type: "text",
-      required: true,
-      unique: true,
       admin: {
-        readOnly: true,
+        description: "Display name for this voice. Leave empty to auto-fill from the source record.",
       },
     },
     {
-      name: "sourceName",
-      label: "Provider Name",
-      type: "text",
+      name: "sourceRecord",
+      type: "relationship",
+      relationTo: ["polly-voices", "qwen-voices"],
       required: true,
-      maxLength: 120,
-    },
-    {
-      name: "languageCode",
-      type: "text",
-      required: true,
-      maxLength: 16,
-    },
-    {
-      name: "languageName",
-      type: "text",
-      required: true,
-      maxLength: 120,
-    },
-    {
-      name: "gender",
-      type: "select",
-      required: true,
-      defaultValue: "unknown",
-      options: genderOptions,
-    },
-    {
-      name: "engines",
-      type: "select",
-      hasMany: true,
-      options: engineOptions,
-      defaultValue: ["standard"],
     },
     {
       name: "isActive",

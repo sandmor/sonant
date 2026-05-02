@@ -20,8 +20,8 @@ export type Generation = {
   voiceSource: string;
   sourceVoiceId: string;
   voiceName: string;
-  voiceLocale: string;
-  voiceEngine: string;
+  voiceLocale?: string;
+  voiceEngine?: string;
   audioMime: string | null;
   audioUrl: string | null;
   audioByteLength: number | null;
@@ -38,10 +38,10 @@ export type VoiceOption = {
   source: string;
   sourceVoiceId: string;
   name: string;
-  languageCode: string;
-  languageName: string;
+  languageCode?: string;
+  languageName?: string;
   gender: string;
-  engines: string[];
+  engines?: string[];
   isDefault: boolean;
 };
 
@@ -74,8 +74,6 @@ export function normalizeGeneration(value: unknown): Generation | null {
     typeof raw.voiceSource !== "string" ||
     typeof raw.sourceVoiceId !== "string" ||
     typeof raw.voiceName !== "string" ||
-    typeof raw.voiceLocale !== "string" ||
-    typeof raw.voiceEngine !== "string" ||
     typeof raw.charCount !== "number" ||
     typeof raw.createdAt !== "string"
   ) {
@@ -99,8 +97,8 @@ export function normalizeGeneration(value: unknown): Generation | null {
     voiceSource: raw.voiceSource,
     sourceVoiceId: raw.sourceVoiceId,
     voiceName: raw.voiceName,
-    voiceLocale: raw.voiceLocale,
-    voiceEngine: raw.voiceEngine,
+    voiceLocale: typeof raw.voiceLocale === "string" ? raw.voiceLocale : undefined,
+    voiceEngine: typeof raw.voiceEngine === "string" ? raw.voiceEngine : undefined,
     audioUrl,
     audioMime,
     audioByteLength,
@@ -127,25 +125,23 @@ export function normalizeVoice(value: unknown): VoiceOption | null {
     typeof raw.source !== "string" ||
     typeof raw.sourceVoiceId !== "string" ||
     typeof raw.name !== "string" ||
-    typeof raw.languageCode !== "string" ||
-    typeof raw.languageName !== "string" ||
     typeof raw.gender !== "string" ||
-    !Array.isArray(raw.engines) ||
-    raw.engines.some((entry) => typeof entry !== "string") ||
     typeof raw.isDefault !== "boolean"
   ) {
     return null;
   }
+
+  const engines = Array.isArray(raw.engines) && raw.engines.every(entry => typeof entry === "string") ? raw.engines : undefined;
 
   return {
     id: raw.id,
     source: raw.source,
     sourceVoiceId: raw.sourceVoiceId,
     name: raw.name,
-    languageCode: raw.languageCode,
-    languageName: raw.languageName,
+    languageCode: typeof raw.languageCode === "string" ? raw.languageCode : undefined,
+    languageName: typeof raw.languageName === "string" ? raw.languageName : undefined,
     gender: raw.gender,
-    engines: raw.engines,
+    engines: engines,
     isDefault: raw.isDefault,
   };
 }
@@ -211,5 +207,8 @@ export function formatRelativeTime(value: string) {
 }
 
 export function voiceLabelFromGeneration(generation: Generation) {
-  return `${generation.voiceName} · ${generation.voiceLocale}`;
+  if (generation.voiceLocale) {
+    return `${generation.voiceName} · ${generation.voiceLocale}`;
+  }
+  return generation.voiceName;
 }

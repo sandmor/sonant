@@ -1,0 +1,11 @@
+[project]
+name = "worker"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi[standard]>=0.136.1",
+    "modal>=1.4.2",
+    "qwen-tts>=0.1.1",
+    "soundfile>=0.13.1",
+    "torch>=2.11.0",
+]

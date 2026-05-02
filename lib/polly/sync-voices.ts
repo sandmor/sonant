@@ -5,7 +5,6 @@ import {
 } from "@aws-sdk/client-polly";
 import type { Payload } from "payload";
 
-const AWS_POLLY_SOURCE = "aws-polly" as const;
 const DEFAULT_POLLY_VOICE_ID = process.env.DEFAULT_POLLY_VOICE_ID || "Joanna";
 
 export type SyncPollyVoicesResult = {
@@ -121,12 +120,7 @@ export async function syncPollyVoices(
   try {
     if (!options?.force) {
       const existingVoice = await payload.find({
-        collection: "voices",
-        where: {
-          source: {
-            equals: AWS_POLLY_SOURCE,
-          },
-        },
+        collection: "polly-voices",
         limit: 1,
         depth: 0,
         overrideAccess: true,
@@ -156,11 +150,24 @@ export async function syncPollyVoices(
       };
     }
 
-    const existingVoices = await payload.find({
+    const existingPollyVoices = await payload.find({
+      collection: "polly-voices",
+      limit: 1000,
+      depth: 0,
+      overrideAccess: true,
+    });
+
+    const existingByProviderId = new Map(
+      existingPollyVoices.docs
+        .filter((doc) => typeof doc.voiceId === "string")
+        .map((doc) => [doc.voiceId, doc]),
+    );
+
+    const activeAgnosticVoices = await payload.find({
       collection: "voices",
       where: {
-        source: {
-          equals: AWS_POLLY_SOURCE,
+        "sourceRecord.relationTo": {
+          equals: "polly-voices",
         },
       },
       limit: 1000,
@@ -168,11 +175,19 @@ export async function syncPollyVoices(
       overrideAccess: true,
     });
 
-    const existingByProviderId = new Map(
-      existingVoices.docs
-        .filter((doc) => typeof doc.sourceVoiceId === "string")
-        .map((doc) => [doc.sourceVoiceId, doc]),
+    // Map polly-voice ID to agnostic voice ID
+    const agnosticVoiceMap = new Map(
+      activeAgnosticVoices.docs
+        .filter((doc) => doc.sourceRecord?.value)
+        .map((doc) => [
+          typeof doc.sourceRecord?.value === "object"
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            ? (doc.sourceRecord.value as any).id
+            : doc.sourceRecord?.value,
+          doc,
+        ])
     );
+
     const remoteVoiceIds = new Set<string>();
 
     let createdCount = 0;
@@ -198,24 +213,20 @@ export async function syncPollyVoices(
       const existing = existingByProviderId.get(sourceVoiceId);
 
       const baseData = {
-        source: AWS_POLLY_SOURCE,
-        sourceVoiceId,
-        sourceKey: `${AWS_POLLY_SOURCE}:${sourceVoiceId}`,
-        sourceName,
+        voiceId: sourceVoiceId,
         languageCode,
         languageName,
         gender: normalizePollyGender(remoteVoice.Gender),
         engines: normalizedEngines,
-        metadata: {
-          additionalLanguageCodes: remoteVoice.AdditionalLanguageCodes ?? [],
-          sourceSync: "aws-polly:describe-voices",
-        },
       };
 
+      let pollyRecordId: number;
+
       if (existing) {
+        pollyRecordId = existing.id as number;
+
         const shouldUpdate =
-          existing.sourceKey !== baseData.sourceKey ||
-          existing.sourceName !== baseData.sourceName ||
+          existing.name !== sourceName ||
           existing.languageCode !== baseData.languageCode ||
           existing.languageName !== baseData.languageName ||
           existing.gender !== baseData.gender ||
@@ -224,77 +235,98 @@ export async function syncPollyVoices(
               ? (existing.engines as VoiceEngineValue[])
               : undefined,
             baseData.engines,
-          ) ||
-          existing.isActive !== true;
+          );
 
         if (shouldUpdate) {
           await payload.update({
-            collection: "voices",
+            collection: "polly-voices",
             id: existing.id,
             overrideAccess: true,
             data: {
               ...baseData,
-              name: existing.name || sourceName,
-              isActive: true,
-              isDefault: existing.isDefault,
+              name: sourceName,
             },
           });
 
           updatedCount += 1;
         }
-
-        continue;
+      } else {
+        const newRecord = await payload.create({
+          collection: "polly-voices",
+          overrideAccess: true,
+          data: {
+            ...baseData,
+            name: sourceName,
+          },
+        });
+        
+        pollyRecordId = newRecord.id as number;
+        createdCount += 1;
       }
 
-      await payload.create({
-        collection: "voices",
-        overrideAccess: true,
-        draft: false,
-        data: {
-          ...baseData,
-          name: sourceName,
-          isActive: true,
-          isDefault: sourceVoiceId === DEFAULT_POLLY_VOICE_ID,
-        },
-      });
-
-      createdCount += 1;
+      // Ensure an agnostic voice record exists
+      if (!agnosticVoiceMap.has(pollyRecordId)) {
+        await payload.create({
+          collection: "voices",
+          overrideAccess: true,
+          data: {
+            name: sourceName,
+            sourceRecord: {
+              relationTo: "polly-voices",
+              value: pollyRecordId,
+            },
+            isActive: true,
+            isDefault: sourceVoiceId === DEFAULT_POLLY_VOICE_ID,
+          },
+        });
+      } else {
+        // Ensure it is active
+        const existingAgnostic = agnosticVoiceMap.get(pollyRecordId)!;
+        if (!existingAgnostic.isActive) {
+          await payload.update({
+            collection: "voices",
+            id: existingAgnostic.id,
+            overrideAccess: true,
+            data: {
+              isActive: true,
+            },
+          });
+        }
+      }
     }
 
-    for (const existingVoice of existingVoices.docs) {
-      const sourceVoiceId =
-        typeof existingVoice.sourceVoiceId === "string"
-          ? existingVoice.sourceVoiceId
-          : null;
+    // Deactivate missing remote voices
+    for (const existingVoice of existingPollyVoices.docs) {
+      const sourceVoiceId = existingVoice.voiceId as string;
 
-      if (!sourceVoiceId || remoteVoiceIds.has(sourceVoiceId)) {
+      if (remoteVoiceIds.has(sourceVoiceId)) {
         continue;
       }
 
-      if (!existingVoice.isActive && !existingVoice.isDefault) {
-        continue;
+      // Remote voice removed from Polly. Deactivate associated agnostic voice.
+      const agnostic = agnosticVoiceMap.get(existingVoice.id as number);
+      if (agnostic && agnostic.isActive) {
+        await payload.update({
+          collection: "voices",
+          id: agnostic.id,
+          overrideAccess: true,
+          data: {
+            isActive: false,
+            isDefault: false,
+          },
+        });
+        deactivatedCount += 1;
       }
-
-      await payload.update({
-        collection: "voices",
-        id: existingVoice.id,
-        overrideAccess: true,
-        data: {
-          isActive: false,
-          isDefault: false,
-        },
-      });
-
-      deactivatedCount += 1;
     }
 
-    const defaultVoice = await payload.find({
+    // Ensure a default voice exists
+    const defaultVoiceRaw = await payload.find({
       collection: "voices",
       where: {
         and: [
           {
-            source: {
-              equals: AWS_POLLY_SOURCE,
+            "sourceRecord.relationTo": {
+              equals: "polly-voices",
             },
           },
           {
@@ -309,37 +341,44 @@ export async function syncPollyVoices(
       depth: 0,
     });
 
-    if (defaultVoice.totalDocs === 0) {
-      const fallbackVoice = await payload.find({
-        collection: "voices",
+    if (defaultVoiceRaw.totalDocs === 0) {
+      // Find the fallback voice (Joanna) in polly-voices
+      const fallbackPollyVoice = await payload.find({
+        collection: "polly-voices",
         where: {
-          and: [
-            {
-              source: {
-                equals: AWS_POLLY_SOURCE,
-              },
-            },
-            {
-              sourceVoiceId: {
-                equals: DEFAULT_POLLY_VOICE_ID,
-              },
-            },
-          ],
+          voiceId: {
+            equals: DEFAULT_POLLY_VOICE_ID,
+          },
         },
         limit: 1,
         overrideAccess: true,
         depth: 0,
       });
 
-      if (fallbackVoice.docs[0]) {
-        await payload.update({
+      if (fallbackPollyVoice.docs[0]) {
+        // Find corresponding agnostic voice
+        const agnosticFallback = await payload.find({
           collection: "voices",
-          id: fallbackVoice.docs[0].id,
-          overrideAccess: true,
-          data: {
-            isDefault: true,
+          where: {
+            "sourceRecord.value": {
+              equals: fallbackPollyVoice.docs[0].id,
+            },
           },
+          limit: 1,
+          overrideAccess: true,
+          depth: 0,
         });
+
+        if (agnosticFallback.docs[0]) {
+          await payload.update({
+            collection: "voices",
+            id: agnosticFallback.docs[0].id,
+            overrideAccess: true,
+            data: {
+              isDefault: true,
+            },
+          });
+        }
       }
     }
 

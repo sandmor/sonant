@@ -1,0 +1,77 @@
+import modal
+import json
+import os
+
+app = modal.App("qwen3-tts-api")
+
+def download_model():
+    from huggingface_hub import snapshot_download
+    print("Downloading Qwen 1.7B weights into the container image...")
+    snapshot_download("Qwen/Qwen3-TTS-12Hz-1.7B-Base")
+
+flash_attn_url = (
+    "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/"
+    "flash_attn-2.8.3+cu12torch2.6cxx11abiFALSE-cp313-cp313-linux_x86_64.whl"
+)
+
+image = (
+    modal.Image.debian_slim(python_version="3.13")
+    .apt_install("sox", "libsox-dev")
+    .pip_install_from_pyproject("pyproject.toml")
+    .pip_install(flash_attn_url)
+    .run_function(download_model)
+    .add_local_dir("./voices", remote_path="/assets/voices")
+)
+
+@app.cls(image=image, gpu="L4", scaledown_window=30)
+@modal.concurrent(max_inputs=10, target_inputs=8)
+class QwenTTS:
+    @modal.enter()
+    def load_model_and_voices(self):
+        import torch
+        from qwen_tts import Qwen3TTSModel
+        
+        print("Loading Qwen3-TTS 1.7B Base model into VRAM from local disk...")
+        self.model = Qwen3TTSModel.from_pretrained(
+            "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+            device_map="cuda:0",
+            dtype=torch.bfloat16
+        )
+        
+        registry_path = "/assets/voices/registry.json"
+        with open(registry_path, "r") as f:
+            self.voice_registry = json.load(f)
+
+    @modal.fastapi_endpoint(method="POST")
+    async def generate(self, payload: dict):
+        import soundfile as sf
+        import io
+        from fastapi.responses import Response
+
+        text = payload.get("text")
+        voice_id = payload.get("voice_id")
+        language = payload.get("language", "English") 
+
+        if not text or not voice_id:
+             return Response(content="Missing 'text' or 'voice_id' in payload", status_code=400)
+
+        if voice_id not in self.voice_registry:
+            return Response(content=f"Voice '{voice_id}' not found", status_code=400)
+
+        voice_info = self.voice_registry[voice_id]
+        audio_path = os.path.join("/assets/voices", voice_info["file"])
+        ref_text = voice_info["ref_text"]
+
+        audio_data, sample_rate = self.model.generate_voice_clone(
+            text=text,
+            language=language,
+            ref_audio=audio_path,
+            ref_text=ref_text
+        )
+
+        audio_array = audio_data[0].astype("float32")
+
+        buffer = io.BytesIO()
+        sf.write(buffer, audio_array, sample_rate, format="WAV")
+        
+        return Response(content=buffer.getvalue(), media_type="audio/wav")

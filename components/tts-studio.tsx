@@ -592,6 +592,12 @@ function HistoryItem({
   );
 }
 
+const QWEN_LANGUAGES = [
+  "English", "Chinese", "French", "Spanish", "Korean", "Japanese", "German",
+  "Italian", "Russian", "Portuguese", "Dutch", "Turkish", "Arabic",
+  "Polish", "Indonesian", "Vietnamese"
+];
+
 function TTSWorkspaceContent() {
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -614,6 +620,8 @@ function TTSWorkspaceContent() {
 
   const [text, setText] = useState("");
   const [voiceId, setVoiceId] = useState("");
+  const [language, setLanguage] = useState("English");
+  const [openLanguagePicker, setOpenLanguagePicker] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
 
@@ -662,7 +670,9 @@ function TTSWorkspaceContent() {
 
   const groupedVoices = useMemo(() => {
     return voices.reduce<Record<string, VoiceOption[]>>((acc, voice) => {
-      const localeKey = `${voice.languageName} (${voice.languageCode})`;
+      const localeKey = voice.source === "qwen" 
+        ? "Multilingual Models" 
+        : `${voice.languageName} (${voice.languageCode})`;
 
       if (!acc[localeKey]) {
         acc[localeKey] = [];
@@ -1013,6 +1023,7 @@ function TTSWorkspaceContent() {
         text,
         voiceSource: parsedVoice.source,
         voiceId: parsedVoice.voiceId,
+        language: parsedVoice.source === "qwen" ? language : undefined,
       });
 
       setHistory((prev) => [
@@ -1080,6 +1091,9 @@ function TTSWorkspaceContent() {
   function applyGenerationToDraft(generation: Generation) {
     setText(generation.inputText);
     setVoiceId(makeVoiceKey(generation.voiceSource, generation.sourceVoiceId));
+    if (generation.voiceSource === "qwen" && generation.voiceLocale) {
+      setLanguage(generation.voiceLocale);
+    }
     setSelectedGenerationId(generation.id);
     // Update original text since we're explicitly loading
     setOriginalText(generation.inputText);
@@ -1324,6 +1338,69 @@ function TTSWorkspaceContent() {
                       </Command>
                     </PopoverContent>
                   </Popover>
+
+                  {selectedVoice?.source === "qwen" && (
+                    <div className="pt-2 animate-fade-up" style={{ animationDelay: "0.1s" }}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <AudioLines className="size-4 text-primary" />
+                        <Label
+                          className="text-xs font-semibold uppercase tracking-widest text-muted-foreground"
+                        >
+                          Language
+                        </Label>
+                      </div>
+                      <Popover
+                        open={openLanguagePicker}
+                        onOpenChange={setOpenLanguagePicker}
+                      >
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={openLanguagePicker}
+                            className="w-full justify-between rounded-xl border-border/40 bg-card/60 py-6 text-[15px] font-normal backdrop-blur-sm hover:bg-card/80 hover:text-foreground"
+                          >
+                            {language || "Select language..."}
+                            <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="p-0 rounded-xl border-border/50 bg-card/95 backdrop-blur-xl"
+                          style={{ width: "var(--radix-popover-trigger-width)" }}
+                        >
+                          <Command>
+                            <CommandInput
+                              placeholder="Search language..."
+                              className="w-full border-none focus:ring-0"
+                            />
+                            <CommandList className="max-h-75">
+                              <CommandEmpty>No language found.</CommandEmpty>
+                              <CommandGroup>
+                                {QWEN_LANGUAGES.map((lang) => (
+                                  <CommandItem
+                                    key={lang}
+                                    value={lang}
+                                    onSelect={(currentValue) => {
+                                      setLanguage(lang);
+                                      setOpenLanguagePicker(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 size-4",
+                                        language === lang ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {lang}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  )}
 
                   {isVoicesLoading ? (
                     <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">

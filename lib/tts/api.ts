@@ -158,7 +158,7 @@ export async function logout() {
 }
 
 export async function fetchVoices() {
-  const response = await fetch("/api/tts/voices?source=aws-polly&limit=500", {
+  const response = await fetch("/api/tts/voices?limit=500", {
     method: "GET",
     credentials: "include",
   });
@@ -178,8 +178,10 @@ export async function fetchVoices() {
     .map(normalizeVoice)
     .filter((entry): entry is VoiceOption => entry !== null)
     .sort((a, b) => {
-      if (a.languageCode !== b.languageCode) {
-        return a.languageCode.localeCompare(b.languageCode);
+      const aLang = a.languageCode || "";
+      const bLang = b.languageCode || "";
+      if (aLang !== bLang) {
+        return aLang.localeCompare(bLang);
       }
 
       return a.name.localeCompare(b.name);
@@ -240,6 +242,7 @@ export async function generateAudio(args: {
   text: string;
   voiceSource: string;
   voiceId: string;
+  language?: string;
 }) {
   const response = await fetch("/api/tts", {
     method: "POST",

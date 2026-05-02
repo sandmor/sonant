@@ -9,7 +9,8 @@
     "build": "next build",
     "start": "bun run check:env && next start",
     "lint": "eslint",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "deploy:modal": "cd modal && uv run modal deploy main.py"
   },
   "dependencies": {
     "@aws-sdk/client-polly": "^3.1028.0",

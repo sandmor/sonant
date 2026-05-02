@@ -148,12 +148,10 @@ export const TTSGenerations: CollectionConfig = {
     {
       name: "voiceLocale",
       type: "text",
-      required: true,
     },
     {
       name: "voiceEngine",
       type: "select",
-      required: true,
       options: voiceEngineOptions,
     },
     {

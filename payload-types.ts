@@ -13,53 +13,53 @@
  * via the `definition` "supportedTimezones".
  */
 export type SupportedTimezones =
-  | "Pacific/Midway"
-  | "Pacific/Niue"
-  | "Pacific/Honolulu"
-  | "Pacific/Rarotonga"
-  | "America/Anchorage"
-  | "Pacific/Gambier"
-  | "America/Los_Angeles"
-  | "America/Tijuana"
-  | "America/Denver"
-  | "America/Phoenix"
-  | "America/Chicago"
-  | "America/Guatemala"
-  | "America/New_York"
-  | "America/Bogota"
-  | "America/Caracas"
-  | "America/Santiago"
-  | "America/Buenos_Aires"
-  | "America/Sao_Paulo"
-  | "Atlantic/South_Georgia"
-  | "Atlantic/Azores"
-  | "Atlantic/Cape_Verde"
-  | "Europe/London"
-  | "Europe/Berlin"
-  | "Africa/Lagos"
-  | "Europe/Athens"
-  | "Africa/Cairo"
-  | "Europe/Moscow"
-  | "Asia/Riyadh"
-  | "Asia/Dubai"
-  | "Asia/Baku"
-  | "Asia/Karachi"
-  | "Asia/Tashkent"
-  | "Asia/Calcutta"
-  | "Asia/Dhaka"
-  | "Asia/Almaty"
-  | "Asia/Jakarta"
-  | "Asia/Bangkok"
-  | "Asia/Shanghai"
-  | "Asia/Singapore"
-  | "Asia/Tokyo"
-  | "Asia/Seoul"
-  | "Australia/Brisbane"
-  | "Australia/Sydney"
-  | "Pacific/Guam"
-  | "Pacific/Noumea"
-  | "Pacific/Auckland"
-  | "Pacific/Fiji";
+  | 'Pacific/Midway'
+  | 'Pacific/Niue'
+  | 'Pacific/Honolulu'
+  | 'Pacific/Rarotonga'
+  | 'America/Anchorage'
+  | 'Pacific/Gambier'
+  | 'America/Los_Angeles'
+  | 'America/Tijuana'
+  | 'America/Denver'
+  | 'America/Phoenix'
+  | 'America/Chicago'
+  | 'America/Guatemala'
+  | 'America/New_York'
+  | 'America/Bogota'
+  | 'America/Caracas'
+  | 'America/Santiago'
+  | 'America/Buenos_Aires'
+  | 'America/Sao_Paulo'
+  | 'Atlantic/South_Georgia'
+  | 'Atlantic/Azores'
+  | 'Atlantic/Cape_Verde'
+  | 'Europe/London'
+  | 'Europe/Berlin'
+  | 'Africa/Lagos'
+  | 'Europe/Athens'
+  | 'Africa/Cairo'
+  | 'Europe/Moscow'
+  | 'Asia/Riyadh'
+  | 'Asia/Dubai'
+  | 'Asia/Baku'
+  | 'Asia/Karachi'
+  | 'Asia/Tashkent'
+  | 'Asia/Calcutta'
+  | 'Asia/Dhaka'
+  | 'Asia/Almaty'
+  | 'Asia/Jakarta'
+  | 'Asia/Bangkok'
+  | 'Asia/Shanghai'
+  | 'Asia/Singapore'
+  | 'Asia/Tokyo'
+  | 'Asia/Seoul'
+  | 'Australia/Brisbane'
+  | 'Australia/Sydney'
+  | 'Pacific/Guam'
+  | 'Pacific/Noumea'
+  | 'Pacific/Auckland'
+  | 'Pacific/Fiji';
 
 export interface Config {
   auth: {
@@ -71,36 +71,32 @@ export interface Config {
     admins: Admin;
     users: User;
     voices: Voice;
-    "tts-audio": TtsAudio;
-    "tts-generations": TtsGeneration;
-    "tts-weekly-usage": TtsWeeklyUsage;
+    'polly-voices': PollyVoice;
+    'qwen-voices': QwenVoice;
+    'tts-audio': TtsAudio;
+    'tts-generations': TtsGeneration;
+    'tts-weekly-usage': TtsWeeklyUsage;
     tiers: Tier;
-    "payload-kv": PayloadKv;
-    "payload-locked-documents": PayloadLockedDocument;
-    "payload-preferences": PayloadPreference;
-    "payload-migrations": PayloadMigration;
+    'payload-kv': PayloadKv;
+    'payload-locked-documents': PayloadLockedDocument;
+    'payload-preferences': PayloadPreference;
+    'payload-migrations': PayloadMigration;
   };
   collectionsJoins: {};
   collectionsSelect: {
     admins: AdminsSelect<false> | AdminsSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
     voices: VoicesSelect<false> | VoicesSelect<true>;
-    "tts-audio": TtsAudioSelect<false> | TtsAudioSelect<true>;
-    "tts-generations": TtsGenerationsSelect<false> | TtsGenerationsSelect<true>;
-    "tts-weekly-usage":
-      | TtsWeeklyUsageSelect<false>
-      | TtsWeeklyUsageSelect<true>;
+    'polly-voices': PollyVoicesSelect<false> | PollyVoicesSelect<true>;
+    'qwen-voices': QwenVoicesSelect<false> | QwenVoicesSelect<true>;
+    'tts-audio': TtsAudioSelect<false> | TtsAudioSelect<true>;
+    'tts-generations': TtsGenerationsSelect<false> | TtsGenerationsSelect<true>;
+    'tts-weekly-usage': TtsWeeklyUsageSelect<false> | TtsWeeklyUsageSelect<true>;
     tiers: TiersSelect<false> | TiersSelect<true>;
-    "payload-kv": PayloadKvSelect<false> | PayloadKvSelect<true>;
-    "payload-locked-documents":
-      | PayloadLockedDocumentsSelect<false>
-      | PayloadLockedDocumentsSelect<true>;
-    "payload-preferences":
-      | PayloadPreferencesSelect<false>
-      | PayloadPreferencesSelect<true>;
-    "payload-migrations":
-      | PayloadMigrationsSelect<false>
-      | PayloadMigrationsSelect<true>;
+    'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
+    'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
+    'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
+    'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
   };
   db: {
     defaultIDType: number;
@@ -177,7 +173,7 @@ export interface Admin {
       }[]
     | null;
   password?: string | null;
-  collection: "admins";
+  collection: 'admins';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -208,7 +204,7 @@ export interface User {
       }[]
     | null;
   password?: string | null;
-  collection: "users";
+  collection: 'users';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -238,17 +234,19 @@ export interface Tier {
  */
 export interface Voice {
   id: number;
-  name: string;
-  source: "aws-polly" | "other";
-  sourceVoiceId: string;
-  sourceKey: string;
-  sourceName: string;
-  languageCode: string;
-  languageName: string;
-  gender: "female" | "male" | "neutral" | "unknown";
-  engines?:
-    | ("standard" | "neural" | "long-form" | "generative" | "other")[]
-    | null;
+  /**
+   * Display name for this voice. Leave empty to auto-fill from the source record.
+   */
+  name?: string | null;
+  sourceRecord:
+    | {
+        relationTo: 'polly-voices';
+        value: number | PollyVoice;
+      }
+    | {
+        relationTo: 'qwen-voices';
+        value: number | QwenVoice;
+      };
   isActive: boolean;
   isDefault: boolean;
   metadata?:
@@ -260,6 +258,34 @@ export interface Voice {
     | number
     | boolean
     | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "polly-voices".
+ */
+export interface PollyVoice {
+  id: number;
+  voiceId: string;
+  name: string;
+  languageCode: string;
+  languageName: string;
+  gender: 'female' | 'male' | 'neutral' | 'unknown';
+  engines: ('standard' | 'neural' | 'long-form' | 'generative' | 'other')[];
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "qwen-voices".
+ */
+export interface QwenVoice {
+  id: number;
+  name: string;
+  voiceId: string;
+  gender: 'female' | 'male' | 'neutral' | 'unknown';
+  isActive: boolean;
   updatedAt: string;
   createdAt: string;
 }
@@ -290,11 +316,11 @@ export interface TtsGeneration {
   id: number;
   user: number | User;
   voice: number | Voice;
-  voiceSource: "aws-polly" | "other";
+  voiceSource: 'aws-polly' | 'qwen' | 'other';
   sourceVoiceId: string;
   voiceName: string;
-  voiceLocale: string;
-  voiceEngine: "standard" | "neural" | "long-form" | "generative" | "other";
+  voiceLocale?: string | null;
+  voiceEngine?: ('standard' | 'neural' | 'long-form' | 'generative' | 'other') | null;
   title: string;
   inputText: string;
   audio: number | TtsAudio;
@@ -342,41 +368,49 @@ export interface PayloadLockedDocument {
   id: number;
   document?:
     | ({
-        relationTo: "admins";
+        relationTo: 'admins';
         value: number | Admin;
       } | null)
     | ({
-        relationTo: "users";
+        relationTo: 'users';
         value: number | User;
       } | null)
     | ({
-        relationTo: "voices";
+        relationTo: 'voices';
         value: number | Voice;
       } | null)
     | ({
-        relationTo: "tts-audio";
+        relationTo: 'polly-voices';
+        value: number | PollyVoice;
+      } | null)
+    | ({
+        relationTo: 'qwen-voices';
+        value: number | QwenVoice;
+      } | null)
+    | ({
+        relationTo: 'tts-audio';
         value: number | TtsAudio;
       } | null)
     | ({
-        relationTo: "tts-generations";
+        relationTo: 'tts-generations';
         value: number | TtsGeneration;
       } | null)
     | ({
-        relationTo: "tts-weekly-usage";
+        relationTo: 'tts-weekly-usage';
         value: number | TtsWeeklyUsage;
       } | null)
     | ({
-        relationTo: "tiers";
+        relationTo: 'tiers';
         value: number | Tier;
       } | null);
   globalSlug?: string | null;
   user:
     | {
-        relationTo: "admins";
+        relationTo: 'admins';
         value: number | Admin;
       }
     | {
-        relationTo: "users";
+        relationTo: 'users';
         value: number | User;
       };
   updatedAt: string;
@@ -390,11 +424,11 @@ export interface PayloadPreference {
   id: number;
   user:
     | {
-        relationTo: "admins";
+        relationTo: 'admins';
         value: number | Admin;
       }
     | {
-        relationTo: "users";
+        relationTo: 'users';
         value: number | User;
       };
   key?: string | null;
@@ -474,17 +508,36 @@ export interface UsersSelect<T extends boolean = true> {
  */
 export interface VoicesSelect<T extends boolean = true> {
   name?: T;
-  source?: T;
-  sourceVoiceId?: T;
-  sourceKey?: T;
-  sourceName?: T;
+  sourceRecord?: T;
+  isActive?: T;
+  isDefault?: T;
+  metadata?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "polly-voices_select".
+ */
+export interface PollyVoicesSelect<T extends boolean = true> {
+  voiceId?: T;
+  name?: T;
   languageCode?: T;
   languageName?: T;
   gender?: T;
   engines?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "qwen-voices_select".
+ */
+export interface QwenVoicesSelect<T extends boolean = true> {
+  name?: T;
+  voiceId?: T;
+  gender?: T;
   isActive?: T;
-  isDefault?: T;
-  metadata?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -599,7 +652,7 @@ export interface CollectionsWidget {
   data?: {
     [k: string]: unknown;
   };
-  width: "full";
+  width: 'full';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -609,6 +662,7 @@ export interface Auth {
   [k: string]: unknown;
 }
 
-declare module "payload" {
+
+declare module 'payload' {
   export interface GeneratedTypes extends Config {}
 }

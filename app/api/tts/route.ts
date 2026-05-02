@@ -35,6 +35,7 @@ const ttsRequestSchema = z.object({
     .optional()
     .default(DEFAULT_VOICE_SOURCE),
   voiceId: z.string().trim().optional(),
+  language: z.string().trim().optional(),
 });
 
 type VoiceRecord = {
@@ -42,8 +43,10 @@ type VoiceRecord = {
   source: VoiceSource;
   sourceVoiceId: string;
   name: string;
-  languageCode: string;
-  engines?: unknown;
+  languageCode?: string;
+  pollyMetadata?: {
+    engines?: unknown;
+  };
   isActive: boolean;
 };
 
@@ -94,65 +97,88 @@ async function resolveVoice(
   user: AuthUser,
   source: VoiceSource,
   sourceVoiceId?: string,
-) {
+): Promise<VoiceRecord | null> {
+  let targetRelationTo: string | undefined = undefined;
+  if (source === "aws-polly") targetRelationTo = "polly-voices";
+  if (source === "qwen") targetRelationTo = "qwen-voices";
+
+  if (!targetRelationTo) return null;
+
   if (sourceVoiceId) {
-    const matchedVoice = await payload.find({
-      collection: "voices",
+    const providerDocs = await payload.find({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      collection: targetRelationTo as any,
       where: {
-        and: [
-          {
-            source: {
-              equals: source,
-            },
-          },
-          {
-            sourceVoiceId: {
-              equals: sourceVoiceId,
-            },
-          },
-          {
-            isActive: {
-              equals: true,
-            },
-          },
-        ],
+        voiceId: { equals: sourceVoiceId },
       },
       limit: 1,
       depth: 0,
       user,
     });
 
-    return (matchedVoice.docs[0] ?? null) as VoiceRecord | null;
+    if (providerDocs.docs.length === 0) return null;
+    const providerDoc = providerDocs.docs[0];
+
+    const matchedVoice = await payload.find({
+      collection: "voices",
+      where: {
+        and: [
+          { "sourceRecord.value": { equals: providerDoc.id } },
+          { isActive: { equals: true } },
+        ],
+      },
+      limit: 1,
+      depth: 1,
+      user,
+    });
+
+    if (matchedVoice.docs.length > 0) {
+      const agnostic = matchedVoice.docs[0];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sourceData = agnostic.sourceRecord?.value as any;
+      if (sourceData) {
+        return {
+          id: agnostic.id,
+          source,
+          sourceVoiceId: sourceData.voiceId,
+          name: agnostic.name || sourceData.name,
+          languageCode: sourceData.languageCode,
+          pollyMetadata: { engines: sourceData.engines },
+          isActive: true,
+        };
+      }
+    }
   }
 
   const preferredDefault = await payload.find({
     collection: "voices",
     where: {
       and: [
-        {
-          source: {
-            equals: source,
-          },
-        },
-        {
-          isActive: {
-            equals: true,
-          },
-        },
-        {
-          isDefault: {
-            equals: true,
-          },
-        },
+        { "sourceRecord.relationTo": { equals: targetRelationTo } },
+        { isActive: { equals: true } },
+        { isDefault: { equals: true } },
       ],
     },
     limit: 1,
-    depth: 0,
+    depth: 1,
     user,
   });
 
   if (preferredDefault.docs[0]) {
-    return preferredDefault.docs[0] as VoiceRecord;
+    const agnostic = preferredDefault.docs[0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sourceData = agnostic.sourceRecord?.value as any;
+    if (sourceData) {
+      return {
+        id: agnostic.id,
+        source,
+        sourceVoiceId: sourceData.voiceId,
+        name: agnostic.name || sourceData.name,
+        languageCode: sourceData.languageCode,
+        pollyMetadata: { engines: sourceData.engines },
+        isActive: true,
+      };
+    }
   }
 
   return null;
@@ -276,7 +302,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { text, voiceSource, voiceId } = parsedRequest.data;
+    const { text, voiceSource, voiceId, language } = parsedRequest.data;
 
     const limitSource = await payload.findByID({
       collection: "users",
@@ -326,7 +352,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (selectedVoice.source !== "aws-polly") {
+    if (selectedVoice.source !== "aws-polly" && selectedVoice.source !== "qwen") {
       return Response.json(
         {
           message: `Voice source '${selectedVoice.source}' is not yet supported for synthesis`,
@@ -335,7 +361,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const selectedEngine = resolvePollyEngine(selectedVoice.engines);
+    const selectedEngine = resolvePollyEngine(selectedVoice.pollyMetadata?.engines);
     const weekStartISO = getCurrentWeekStartUTC().toISOString();
     const weekKey = `${user.id}:${weekStartISO}`;
 
@@ -355,27 +381,69 @@ export async function POST(req: Request) {
         };
       }
 
-      const command = new SynthesizeSpeechCommand({
-        Text: text,
-        OutputFormat: "mp3",
-        VoiceId: selectedVoice.sourceVoiceId as VoiceId,
-        Engine: selectedEngine,
-      });
+      let audioData: Uint8Array;
+      let generationMime = "audio/mpeg";
 
-      const response = await polly.send(command);
-      const byteArray = await response.AudioStream?.transformToByteArray();
+      if (selectedVoice.source === "aws-polly") {
+        const command = new SynthesizeSpeechCommand({
+          Text: text,
+          OutputFormat: "mp3",
+          VoiceId: selectedVoice.sourceVoiceId as VoiceId,
+          Engine: selectedEngine,
+        });
 
-      if (!byteArray) {
-        return {
-          quotaExceeded: false as const,
-          generation: null,
-          noAudio: true as const,
-        };
+        const response = await polly.send(command);
+        const byteArray = await response.AudioStream?.transformToByteArray();
+
+        if (!byteArray) {
+          return {
+            quotaExceeded: false as const,
+            generation: null,
+            noAudio: true as const,
+          };
+        }
+        audioData = new Uint8Array(byteArray);
+      } else {
+        const qwenUrl = process.env.QWEN_TTS_URL;
+        if (!qwenUrl) {
+          throw new Error("QWEN_TTS_URL is not configured");
+        }
+
+        const qwenResponse = await fetch(qwenUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            text,
+            voice_id: selectedVoice.sourceVoiceId,
+            language: language || "English",
+          }),
+        });
+
+        if (!qwenResponse.ok) {
+          return {
+            quotaExceeded: false as const,
+            generation: null,
+            noAudio: true as const,
+          };
+        }
+
+        const arrayBuffer = await qwenResponse.arrayBuffer();
+        if (arrayBuffer.byteLength === 0) {
+          return {
+            quotaExceeded: false as const,
+            generation: null,
+            noAudio: true as const,
+          };
+        }
+        audioData = new Uint8Array(arrayBuffer);
+        generationMime = "audio/wav";
       }
 
-      const audioData = new Uint8Array(byteArray);
       const title = text.length > 72 ? `${text.slice(0, 69)}...` : text;
-      const audioFileName = `tts-${randomUUID()}.mp3`;
+      const extension = generationMime === "audio/wav" ? "wav" : "mp3";
+      const audioFileName = `tts-${randomUUID()}.${extension}`;
 
       let audioUpload: UploadDoc | null = null;
 
@@ -389,7 +457,7 @@ export async function POST(req: Request) {
           user,
           file: {
             data: Buffer.from(audioData),
-            mimetype: "audio/mpeg",
+            mimetype: generationMime,
             name: audioFileName,
             size: audioData.byteLength,
           },
@@ -407,10 +475,10 @@ export async function POST(req: Request) {
             voiceSource: selectedVoice.source,
             sourceVoiceId: selectedVoice.sourceVoiceId,
             voiceName: selectedVoice.name,
-            voiceLocale: selectedVoice.languageCode,
-            voiceEngine: selectedEngine,
+            voiceLocale: selectedVoice.source === "qwen" ? (language || "English") : (selectedVoice.languageCode || null),
+            voiceEngine: selectedVoice.source === "aws-polly" ? selectedEngine : null,
             audio: uploadDoc.id,
-            audioMime: "audio/mpeg",
+            audioMime: generationMime,
             audioByteLength: audioData.byteLength,
             charCount: text.length,
             user: user.id,

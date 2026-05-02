@@ -34,11 +34,14 @@ export async function GET(req: Request) {
       );
     }
 
-    const source = parsedQuery.data.source;
+    const sourceFilter = parsedQuery.data.source;
+    let targetRelationTo: string | undefined = undefined;
+    if (sourceFilter === "aws-polly") targetRelationTo = "polly-voices";
+    if (sourceFilter === "qwen") targetRelationTo = "qwen-voices";
 
     const result = await payload.find({
       collection: "voices",
-      where: source
+      where: targetRelationTo
         ? {
             and: [
               {
@@ -47,8 +50,8 @@ export async function GET(req: Request) {
                 },
               },
               {
-                source: {
-                  equals: source,
+                "sourceRecord.relationTo": {
+                  equals: targetRelationTo,
                 },
               },
             ],
@@ -58,23 +61,42 @@ export async function GET(req: Request) {
               equals: true,
             },
           },
-      sort: "languageCode",
       limit: parsedQuery.data.limit,
       user,
-      depth: 0,
+      depth: 1, // Need depth 1 to populate sourceRecord
     });
 
-    const docs = result.docs.map((doc) => ({
-      id: doc.id,
-      source: doc.source,
-      sourceVoiceId: doc.sourceVoiceId,
-      name: doc.name,
-      languageCode: doc.languageCode,
-      languageName: doc.languageName,
-      gender: doc.gender,
-      engines: doc.engines,
-      isDefault: doc.isDefault,
-    }));
+    // Map into unified format
+    const docs = result.docs
+      .filter((doc) => doc.sourceRecord && typeof doc.sourceRecord.value === "object")
+      .map((doc) => {
+        const relationTo = doc.sourceRecord.relationTo;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sourceData = doc.sourceRecord.value as any;
+
+        const sourceStr = relationTo === "polly-voices" ? "aws-polly" : "qwen";
+
+        return {
+          id: doc.id,
+          source: sourceStr,
+          sourceVoiceId: sourceData.voiceId,
+          name: doc.name || sourceData.name,
+          languageCode: sourceData.languageCode,
+          languageName: sourceData.languageName,
+          gender: sourceData.gender,
+          engines: sourceData.engines,
+          isDefault: doc.isDefault,
+        };
+      })
+      // Sort in JS instead of DB since DB fields were removed
+      .sort((a, b) => {
+        const aLang = a.languageCode || "";
+        const bLang = b.languageCode || "";
+        if (aLang !== bLang) {
+          return aLang.localeCompare(bLang);
+        }
+        return a.name.localeCompare(b.name);
+      });
 
     return Response.json({ docs }, { status: 200 });
   } catch (error) {

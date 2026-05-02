@@ -9,6 +9,8 @@ import { resendAdapter } from "@payloadcms/email-resend";
 import { Admins } from "./collections/admins";
 import { Users } from "./collections/users";
 import { Voices } from "./collections/voices";
+import { PollyVoices } from "./collections/polly-voices";
+import { QwenVoices } from "./collections/qwen-voices";
 import { TTSAudio } from "./collections/tts-audio";
 import { TTSGenerations } from "./collections/tts-generations";
 import { TTSWeeklyUsage } from "./collections/tts-weekly-usage";
@@ -52,6 +54,8 @@ export default buildConfig({
     Admins,
     Users,
     Voices,
+    PollyVoices,
+    QwenVoices,
     TTSAudio,
     TTSGenerations,
     TTSWeeklyUsage,
