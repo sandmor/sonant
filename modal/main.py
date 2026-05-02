@@ -10,21 +10,26 @@ def download_model():
     snapshot_download("Qwen/Qwen3-TTS-12Hz-1.7B-Base")
 
 flash_attn_url = (
-    "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/"
-    "flash_attn-2.8.3+cu12torch2.6cxx11abiFALSE-cp313-cp313-linux_x86_64.whl"
+    "https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/"
+    "flash_attn-2.7.4.post1+cu12torch2.6cxx11abiFALSE-cp313-cp313-linux_x86_64.whl"
 )
 
 image = (
     modal.Image.debian_slim(python_version="3.13")
-    .apt_install("sox", "libsox-dev")
+    .apt_install("sox", "libsox-dev", "libgomp1")
+    .pip_install(
+        "torch==2.6.0", 
+        "torchaudio==2.6.0", 
+        "numpy<3",
+        index_url="https://download.pytorch.org/whl/cu124"
+    )
     .pip_install_from_pyproject("pyproject.toml")
     .pip_install(flash_attn_url)
     .run_function(download_model)
     .add_local_dir("./voices", remote_path="/assets/voices")
 )
 
-@app.cls(image=image, gpu="L4", scaledown_window=30)
-@modal.concurrent(max_inputs=10, target_inputs=8)
+@app.cls(image=image, gpu="L4", scaledown_window=180)
 class QwenTTS:
     @modal.enter()
     def load_model_and_voices(self):
@@ -43,7 +48,7 @@ class QwenTTS:
             self.voice_registry = json.load(f)
 
     @modal.fastapi_endpoint(method="POST")
-    async def generate(self, payload: dict):
+    def generate(self, payload: dict): 
         import soundfile as sf
         import io
         from fastapi.responses import Response
