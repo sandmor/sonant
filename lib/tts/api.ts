@@ -188,8 +188,8 @@ export async function fetchVoices() {
     });
 }
 
-export async function fetchHistory() {
-  const response = await fetch("/api/tts/history?limit=50", {
+export async function fetchHistory(page = 1, limit = 50) {
+  const response = await fetch(`/api/tts/history?limit=${limit}&page=${page}`, {
     method: "GET",
     credentials: "include",
   });
@@ -204,12 +204,22 @@ export async function fetchHistory() {
     );
   }
 
-  const payload = (await response.json()) as { docs?: unknown[] };
+  const payload = (await response.json()) as {
+    docs?: unknown[];
+    totalPages?: number;
+    totalDocs?: number;
+    page?: number;
+  };
   const docs = Array.isArray(payload.docs) ? payload.docs : [];
 
-  return docs
-    .map(normalizeGeneration)
-    .filter((entry): entry is Generation => entry !== null);
+  return {
+    docs: docs
+      .map(normalizeGeneration)
+      .filter((entry): entry is Generation => entry !== null),
+    totalPages: payload.totalPages ?? 1,
+    totalDocs: payload.totalDocs ?? docs.length,
+    page: payload.page ?? 1,
+  };
 }
 
 export async function fetchGenerationByID(id: number) {

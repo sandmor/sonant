@@ -352,7 +352,10 @@ export async function POST(req: Request) {
       );
     }
 
-    if (selectedVoice.source !== "aws-polly" && selectedVoice.source !== "qwen") {
+    if (
+      selectedVoice.source !== "aws-polly" &&
+      selectedVoice.source !== "qwen"
+    ) {
       return Response.json(
         {
           message: `Voice source '${selectedVoice.source}' is not yet supported for synthesis`,
@@ -361,7 +364,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const selectedEngine = resolvePollyEngine(selectedVoice.pollyMetadata?.engines);
+    const selectedEngine = resolvePollyEngine(
+      selectedVoice.pollyMetadata?.engines,
+    );
     const weekStartISO = getCurrentWeekStartUTC().toISOString();
     const weekKey = `${user.id}:${weekStartISO}`;
 
@@ -475,8 +480,12 @@ export async function POST(req: Request) {
             voiceSource: selectedVoice.source,
             sourceVoiceId: selectedVoice.sourceVoiceId,
             voiceName: selectedVoice.name,
-            voiceLocale: selectedVoice.source === "qwen" ? (language || "English") : (selectedVoice.languageCode || null),
-            voiceEngine: selectedVoice.source === "aws-polly" ? selectedEngine : null,
+            voiceLocale:
+              selectedVoice.source === "qwen"
+                ? language || "English"
+                : selectedVoice.languageCode || null,
+            voiceEngine:
+              selectedVoice.source === "aws-polly" ? selectedEngine : null,
             audio: uploadDoc.id,
             audioMime: generationMime,
             audioByteLength: audioData.byteLength,

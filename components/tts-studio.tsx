@@ -509,10 +509,7 @@ function PlayerCard({
           size="sm"
           className="rounded-xl gap-1.5"
         >
-          <a
-            href={audioSrc}
-            download={`${generation.title.replace(/\s+/g, "-").toLowerCase()}.mp3`}
-          >
+          <a href={`/api/tts/history/${generation.id}/download`}>
             <Download className="size-3.5" />
             Download
           </a>
@@ -593,9 +590,22 @@ function HistoryItem({
 }
 
 const QWEN_LANGUAGES = [
-  "English", "Chinese", "French", "Spanish", "Korean", "Japanese", "German",
-  "Italian", "Russian", "Portuguese", "Dutch", "Turkish", "Arabic",
-  "Polish", "Indonesian", "Vietnamese"
+  "English",
+  "Chinese",
+  "French",
+  "Spanish",
+  "Korean",
+  "Japanese",
+  "German",
+  "Italian",
+  "Russian",
+  "Portuguese",
+  "Dutch",
+  "Turkish",
+  "Arabic",
+  "Polish",
+  "Indonesian",
+  "Vietnamese",
 ];
 
 function TTSWorkspaceContent() {
@@ -670,9 +680,10 @@ function TTSWorkspaceContent() {
 
   const groupedVoices = useMemo(() => {
     return voices.reduce<Record<string, VoiceOption[]>>((acc, voice) => {
-      const localeKey = voice.source === "qwen" 
-        ? "Multilingual Models" 
-        : `${voice.languageName} (${voice.languageCode})`;
+      const localeKey =
+        voice.source === "qwen"
+          ? "Multilingual Models"
+          : `${voice.languageName} (${voice.languageCode})`;
 
       if (!acc[localeKey]) {
         acc[localeKey] = [];
@@ -682,6 +693,8 @@ function TTSWorkspaceContent() {
       return acc;
     }, {});
   }, [voices]);
+
+  const [historyTotalPages, setHistoryTotalPages] = useState(1);
 
   const filteredHistory = useMemo(() => {
     const query = historyQuery.trim().toLowerCase();
@@ -701,13 +714,12 @@ function TTSWorkspaceContent() {
     });
   }, [history, historyQuery]);
 
-  // Paginated history
-  const paginatedHistory = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredHistory.slice(start, start + itemsPerPage);
-  }, [filteredHistory, currentPage]);
+  // Use local history as is for now since it's already paginated on backend
+  const paginatedHistory = filteredHistory;
 
-  const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
+  const totalPages = historyQuery
+    ? Math.ceil(filteredHistory.length / itemsPerPage)
+    : historyTotalPages;
 
   // Reset to first page when search changes
   useEffect(() => {
@@ -733,13 +745,15 @@ function TTSWorkspaceContent() {
     return text.trim() !== originalText.trim() && text.trim().length > 0;
   }, [text, originalText]);
 
-  async function loadHistory() {
+  async function loadHistory(page = 1) {
     setIsHistoryLoading(true);
 
     try {
-      const nextHistory = await fetchHistory();
+      const { docs: nextHistory, totalPages: fetchTotalPages } =
+        await fetchHistory(page, itemsPerPage);
 
       setHistory(nextHistory);
+      setHistoryTotalPages(fetchTotalPages);
       setHistoryError(null);
       setSelectedGenerationLoadError(null);
       setSelectedGenerationId((current) => {
@@ -901,6 +915,7 @@ function TTSWorkspaceContent() {
   useEffect(() => {
     if (!authUser) {
       setHistory([]);
+      setHistoryTotalPages(1);
       setUsage(null);
       setVoices([]);
       setVoiceId("");
@@ -910,8 +925,14 @@ function TTSWorkspaceContent() {
       return;
     }
 
-    void Promise.all([loadVoices(), loadHistory(), loadUsage()]);
+    void Promise.all([loadVoices(), loadHistory(currentPage), loadUsage()]);
   }, [authUser]);
+
+  useEffect(() => {
+    if (authUser) {
+      void loadHistory(currentPage);
+    }
+  }, [currentPage]);
 
   useEffect(() => {
     if (!selectedGenerationForAudioId) {
@@ -1172,15 +1193,6 @@ function TTSWorkspaceContent() {
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-3">
-            <div className="hidden items-center gap-2 sm:flex">
-              <div className="h-2 w-2 rounded-full bg-emerald-500/80 animate-pulse-glow" />
-              <span className="text-xs text-muted-foreground">
-                Studio active
-              </span>
-            </div>
-
-            <div className="hidden h-5 w-px bg-border/60 sm:block" />
-
             <UsageIndicator usage={usage} isLoading={isUsageLoading} />
 
             <div className="hidden h-5 w-px bg-border/60 sm:block" />
@@ -1235,7 +1247,7 @@ function TTSWorkspaceContent() {
         <div className="mx-auto max-w-7xl px-3 py-4 sm:px-5 sm:py-6 lg:py-8">
           <div className="mb-8 animate-fade-up">
             <h1 className="font-heading text-3xl text-foreground text-glow sm:text-4xl lg:text-5xl">
-              Voice Studio
+              Sonant
             </h1>
             <p className="mt-2 max-w-lg text-muted-foreground">
               Write your script, choose a voice, and generate a take. Every
@@ -1340,12 +1352,13 @@ function TTSWorkspaceContent() {
                   </Popover>
 
                   {selectedVoice?.source === "qwen" && (
-                    <div className="pt-2 animate-fade-up" style={{ animationDelay: "0.1s" }}>
+                    <div
+                      className="pt-2 animate-fade-up"
+                      style={{ animationDelay: "0.1s" }}
+                    >
                       <div className="flex items-center gap-2 mb-3">
                         <AudioLines className="size-4 text-primary" />
-                        <Label
-                          className="text-xs font-semibold uppercase tracking-widest text-muted-foreground"
-                        >
+                        <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                           Language
                         </Label>
                       </div>
@@ -1366,7 +1379,9 @@ function TTSWorkspaceContent() {
                         </PopoverTrigger>
                         <PopoverContent
                           className="p-0 rounded-xl border-border/50 bg-card/95 backdrop-blur-xl"
-                          style={{ width: "var(--radix-popover-trigger-width)" }}
+                          style={{
+                            width: "var(--radix-popover-trigger-width)",
+                          }}
                         >
                           <Command>
                             <CommandInput
@@ -1388,7 +1403,9 @@ function TTSWorkspaceContent() {
                                     <Check
                                       className={cn(
                                         "mr-2 size-4",
-                                        language === lang ? "opacity-100" : "opacity-0"
+                                        language === lang
+                                          ? "opacity-100"
+                                          : "opacity-0",
                                       )}
                                     />
                                     {lang}
@@ -1415,35 +1432,6 @@ function TTSWorkspaceContent() {
                       first.
                     </div>
                   ) : null}
-
-                  {/* Quick-pick voice chips */}
-                  {voices.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {voices.slice(0, 6).map((voice) => {
-                        const selectionKey = makeVoiceKey(
-                          voice.source,
-                          voice.sourceVoiceId,
-                        );
-                        const isActive = voiceId === selectionKey;
-
-                        return (
-                          <button
-                            key={`${voice.source}:${voice.sourceVoiceId}`}
-                            type="button"
-                            onClick={() => setVoiceId(selectionKey)}
-                            className={[
-                              "rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
-                              isActive
-                                ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20"
-                                : "bg-muted/40 text-muted-foreground hover:bg-muted/70 hover:text-foreground",
-                            ].join(" ")}
-                          >
-                            {voice.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
 
                 {/* Script textarea */}
@@ -1586,7 +1574,7 @@ function TTSWorkspaceContent() {
                 ) : null}
 
                 <div className="flex-1 min-h-0 rounded-2xl border border-border/30 bg-card/40 backdrop-blur-sm overflow-hidden flex flex-col">
-                  <ScrollArea className="flex-1 p-2">
+                  <ScrollArea className="flex-1 p-2 [&>[data-radix-scroll-area-viewport]]:max-h-[calc(100dvh-280px)]">
                     <div className="space-y-1.5">
                       {isHistoryLoading ? (
                         <div className="flex items-center justify-center py-12">

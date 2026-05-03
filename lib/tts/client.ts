@@ -97,8 +97,10 @@ export function normalizeGeneration(value: unknown): Generation | null {
     voiceSource: raw.voiceSource,
     sourceVoiceId: raw.sourceVoiceId,
     voiceName: raw.voiceName,
-    voiceLocale: typeof raw.voiceLocale === "string" ? raw.voiceLocale : undefined,
-    voiceEngine: typeof raw.voiceEngine === "string" ? raw.voiceEngine : undefined,
+    voiceLocale:
+      typeof raw.voiceLocale === "string" ? raw.voiceLocale : undefined,
+    voiceEngine:
+      typeof raw.voiceEngine === "string" ? raw.voiceEngine : undefined,
     audioUrl,
     audioMime,
     audioByteLength,
@@ -131,15 +133,21 @@ export function normalizeVoice(value: unknown): VoiceOption | null {
     return null;
   }
 
-  const engines = Array.isArray(raw.engines) && raw.engines.every(entry => typeof entry === "string") ? raw.engines : undefined;
+  const engines =
+    Array.isArray(raw.engines) &&
+    raw.engines.every((entry) => typeof entry === "string")
+      ? raw.engines
+      : undefined;
 
   return {
     id: raw.id,
     source: raw.source,
     sourceVoiceId: raw.sourceVoiceId,
     name: raw.name,
-    languageCode: typeof raw.languageCode === "string" ? raw.languageCode : undefined,
-    languageName: typeof raw.languageName === "string" ? raw.languageName : undefined,
+    languageCode:
+      typeof raw.languageCode === "string" ? raw.languageCode : undefined,
+    languageName:
+      typeof raw.languageName === "string" ? raw.languageName : undefined,
     gender: raw.gender,
     engines: engines,
     isDefault: raw.isDefault,
@@ -157,8 +165,18 @@ function getErrorMessage(payload: unknown, fallbackMessage: string) {
     return data.message;
   }
 
-  if (Array.isArray(data.errors) && typeof data.errors[0] === "string") {
-    return data.errors[0];
+  if (Array.isArray(data.errors) && data.errors.length > 0) {
+    const firstError = data.errors[0];
+    if (typeof firstError === "string") {
+      return firstError;
+    }
+    if (
+      typeof firstError === "object" &&
+      firstError !== null &&
+      typeof (firstError as any).message === "string"
+    ) {
+      return (firstError as any).message;
+    }
   }
 
   if (typeof data.error === "string") {

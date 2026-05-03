@@ -68,7 +68,9 @@ export async function GET(req: Request) {
 
     // Map into unified format
     const docs = result.docs
-      .filter((doc) => doc.sourceRecord && typeof doc.sourceRecord.value === "object")
+      .filter(
+        (doc) => doc.sourceRecord && typeof doc.sourceRecord.value === "object",
+      )
       .map((doc) => {
         const relationTo = doc.sourceRecord.relationTo;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

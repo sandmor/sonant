@@ -21,9 +21,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sonant — Voice Studio",
-  description:
-    "Craft polished audio from text. Explore voices, generate takes, and iterate from history — all in one continuous workspace.",
+  title: "Sonant",
+  description: "Craft polished audio from text.",
 };
 
 import { ThemeProvider } from "@/components/theme-provider";

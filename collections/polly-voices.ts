@@ -21,12 +21,7 @@ export const PollyVoices: CollectionConfig = {
   slug: "polly-voices",
   admin: {
     useAsTitle: "name",
-    defaultColumns: [
-      "voiceId",
-      "name",
-      "languageCode",
-      "gender",
-    ],
+    defaultColumns: ["voiceId", "name", "languageCode", "gender"],
   },
   access: {
     read: isAuthenticated,

@@ -4,6 +4,7 @@ import configPromise from "@payload-config";
 
 const querySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(30),
+  page: z.coerce.number().int().min(1).default(1),
 });
 
 export async function GET(req: Request) {
@@ -18,6 +19,7 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const parsedQuery = querySchema.safeParse({
       limit: url.searchParams.get("limit") ?? undefined,
+      page: url.searchParams.get("page") ?? undefined,
     });
 
     if (!parsedQuery.success) {
@@ -30,6 +32,8 @@ export async function GET(req: Request) {
       );
     }
 
+    const { limit, page } = parsedQuery.data;
+
     const result = await payload.find({
       collection: "tts-generations",
       where: {
@@ -38,7 +42,8 @@ export async function GET(req: Request) {
         },
       },
       sort: "-createdAt",
-      limit: parsedQuery.data.limit,
+      limit,
+      page,
       user,
       depth: 0,
       select: {
@@ -69,7 +74,15 @@ export async function GET(req: Request) {
       createdAt: doc.createdAt,
     }));
 
-    return Response.json({ docs }, { status: 200 });
+    return Response.json(
+      {
+        docs,
+        totalPages: result.totalPages,
+        page: result.page,
+        totalDocs: result.totalDocs,
+      },
+      { status: 200 },
+    );
   } catch (error) {
     console.error("TTS History GET Error:", error);
     return Response.json({ message: "Internal Server Error" }, { status: 500 });

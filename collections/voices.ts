@@ -31,7 +31,10 @@ export const Voices: CollectionConfig = {
 
         // Auto-populate name if it is not provided
         if (!data.name && data.sourceRecord) {
-          const relation = data.sourceRecord as { relationTo: string; value: string | number };
+          const relation = data.sourceRecord as {
+            relationTo: string;
+            value: string | number;
+          };
           if (relation && relation.relationTo && relation.value) {
             const relatedDoc = await req.payload.findByID({
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -84,7 +87,7 @@ export const Voices: CollectionConfig = {
 
           // Filter manually
           const othersMarkedDefault = othersMarkedDefaultRaw.docs.filter(
-            (v) => v.sourceRecord?.relationTo === relationTo
+            (v) => v.sourceRecord?.relationTo === relationTo,
           );
 
           if (othersMarkedDefault.length === 0) {
@@ -146,7 +149,8 @@ export const Voices: CollectionConfig = {
       required: false,
       maxLength: 120,
       admin: {
-        description: "Display name for this voice. Leave empty to auto-fill from the source record.",
+        description:
+          "Display name for this voice. Leave empty to auto-fill from the source record.",
       },
     },
     {

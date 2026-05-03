@@ -181,11 +181,11 @@ export async function syncPollyVoices(
         .filter((doc) => doc.sourceRecord?.value)
         .map((doc) => [
           typeof doc.sourceRecord?.value === "object"
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            ? (doc.sourceRecord.value as any).id
+            ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (doc.sourceRecord.value as any).id
             : doc.sourceRecord?.value,
           doc,
-        ])
+        ]),
     );
 
     const remoteVoiceIds = new Set<string>();
@@ -259,7 +259,7 @@ export async function syncPollyVoices(
             name: sourceName,
           },
         });
-        
+
         pollyRecordId = newRecord.id as number;
         createdCount += 1;
       }
