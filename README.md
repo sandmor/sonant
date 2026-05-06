@@ -2,17 +2,18 @@
 
 A Payload + Next.js application for authenticated text-to-speech generation with:
 
-- AWS Polly synthesis
+- AWS Polly & Qwen3-TTS (via Modal) synthesis
 - S3-compatible audio storage with signed playback URLs
 - Per-user weekly character limits
-- Voice catalog sync from Polly
+- Voice catalog sync from providers
 - Generation history and playback UI
 
 ## Stack
 
 - Next.js App Router
 - Payload CMS
-- AWS Polly (voice synthesis)
+- AWS Polly & Qwen3-TTS (voice synthesis)
+- Modal (serverless GPU container for Qwen)
 - S3-compatible object storage (audio files)
 - Bun (package manager / runtime)
 
@@ -22,6 +23,7 @@ A Payload + Next.js application for authenticated text-to-speech generation with
 - PostgreSQL
 - S3-compatible bucket
 - AWS Polly access (AWS credentials or equivalent provider credentials)
+- Modal account & token (if using Qwen3-TTS backend)
 
 ## Environment Variables
 
@@ -47,6 +49,10 @@ Set these in `.env`.
 - `AWS_ACCESS_KEY_ID` (optional when using default AWS credential chain)
 - `AWS_SECRET_ACCESS_KEY` (optional when using default AWS credential chain)
 - `DEFAULT_POLLY_VOICE_ID` (optional, default: `Joanna`)
+
+### Modal / Qwen (optional)
+
+- `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` (obtained after running `modal token new`)
 
 ### Email Verification (optional)
 
