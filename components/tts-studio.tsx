@@ -15,8 +15,8 @@ import {
   RefreshCw,
   Search,
   Sun,
-  Volume2,
 } from "lucide-react";
+import { SonantIcon } from "@/components/sonant-icon";
 import Link from "next/link";
 
 import { useTheme } from "next-themes";
@@ -140,9 +140,9 @@ function AuthScreen({
         style={{ animationDelay: "0.1s" }}
       >
         {/* Logo / Brand */}
-        <div className="mb-10 text-center">
+          <div className="mb-10 text-center">
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-primary/20">
-            <Volume2 className="h-7 w-7 text-primary" />
+            <SonantIcon className="h-7 w-7 text-primary" />
           </div>
           <h1 className="font-heading text-3xl text-foreground text-glow sm:text-4xl">
             Sonant
@@ -1187,7 +1187,7 @@ function TTSWorkspaceContent() {
         <div className="mx-auto flex min-h-14 max-w-7xl items-center justify-between gap-2 px-3 py-2 sm:gap-4 sm:px-5 sm:py-0">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15">
-              <Volume2 className="h-4 w-4 text-primary" />
+              <SonantIcon className="h-4 w-4 text-primary" />
             </div>
             <span className="font-heading text-lg text-foreground">Sonant</span>
           </div>

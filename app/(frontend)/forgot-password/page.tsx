@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
-import { LoaderCircle, MailCheck, Volume2 } from "lucide-react";
+import { LoaderCircle, MailCheck } from "lucide-react";
+import { SonantIcon } from "@/components/sonant-icon";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,7 +52,7 @@ function ForgotPasswordContent() {
       <section className="relative z-10 w-full max-w-md animate-fade-up rounded-2xl border border-border/60 bg-card/80 p-5 shadow-2xl shadow-black/20 backdrop-blur-xl sm:rounded-3xl sm:p-7">
         <div className="mb-5 flex items-center justify-between">
           <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-primary/20">
-            <Volume2 className="h-5 w-5 text-primary" />
+            <SonantIcon className="h-5 w-5 text-primary" />
           </div>
           <MailCheck className="h-5 w-5 text-primary" />
         </div>
