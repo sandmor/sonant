@@ -123,6 +123,7 @@ async function resolveVoice(
       collection: "voices",
       where: {
         and: [
+          { "sourceRecord.relationTo": { equals: targetRelationTo } },
           { "sourceRecord.value": { equals: providerDoc.id } },
           { isActive: { equals: true } },
         ],
