@@ -29,23 +29,28 @@ image = (
     .add_local_dir("./voices", remote_path="/assets/voices")
 )
 
-@app.cls(image=image, gpu="L4", scaledown_window=180)
+@app.cls(image=image, gpu="L4", scaledown_window=180, enable_memory_snapshot=True)
 class QwenTTS:
-    @modal.enter()
-    def load_model_and_voices(self):
+    @modal.enter(snap=True)
+    def snapshot_imports(self):
         import torch
         from qwen_tts import Qwen3TTSModel
         
-        print("Loading Qwen3-TTS 1.7B Base model into VRAM from local disk...")
-        self.model = Qwen3TTSModel.from_pretrained(
-            "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
-            device_map="cuda:0",
-            dtype=torch.bfloat16
-        )
+        self.torch = torch
+        self.Qwen3TTSModel = Qwen3TTSModel
         
         registry_path = "/assets/voices/registry.json"
         with open(registry_path, "r") as f:
             self.voice_registry = json.load(f)
+
+    @modal.enter(snap=False)
+    def load_model_to_gpu(self):
+        print("Loading Qwen3-TTS 1.7B Base model into VRAM from local disk...")
+        self.model = self.Qwen3TTSModel.from_pretrained(
+            "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+            device_map="cuda:0",
+            dtype=self.torch.bfloat16
+        )
 
     @modal.fastapi_endpoint(method="POST")
     def generate(self, payload: dict): 
