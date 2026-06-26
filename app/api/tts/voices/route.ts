@@ -2,12 +2,87 @@ import { getPayload } from "payload";
 import { z } from "zod";
 
 import configPromise from "@payload-config";
-import { VOICE_SOURCE_VALUES } from "@/lib/voices";
+import {
+  isModalEngineSource,
+  modalVoiceSupportsSource,
+  relationToForSource,
+  VOICE_SOURCE_VALUES,
+  type ModalEngineSource,
+  type VoiceSource,
+} from "@/lib/voices";
 
 const querySchema = z.object({
   source: z.enum(VOICE_SOURCE_VALUES).optional(),
   limit: z.coerce.number().int().min(1).max(500).default(200),
 });
+
+type MappedVoice = {
+  id: number;
+  source: VoiceSource;
+  supportedEngines: string[];
+  sourceVoiceId: string;
+  name: string;
+  languageCode?: string;
+  languageName?: string;
+  defaultLanguage?: string | null;
+  gender: string;
+  engines?: string[];
+  isDefault: boolean;
+};
+
+type CatalogVoiceDoc = {
+  id: number;
+  name?: string | null;
+  isDefault: boolean;
+};
+
+function mapPollyVoice(
+  doc: CatalogVoiceDoc,
+  sourceData: Record<string, unknown>,
+): MappedVoice {
+  return {
+    id: doc.id,
+    source: "aws-polly",
+    supportedEngines: [],
+    sourceVoiceId: String(sourceData.voiceId),
+    name: doc.name || String(sourceData.name),
+    languageCode:
+      typeof sourceData.languageCode === "string"
+        ? sourceData.languageCode
+        : undefined,
+    languageName:
+      typeof sourceData.languageName === "string"
+        ? sourceData.languageName
+        : undefined,
+    defaultLanguage: null,
+    gender: String(sourceData.gender),
+    engines: Array.isArray(sourceData.engines)
+      ? sourceData.engines.filter((entry): entry is string => typeof entry === "string")
+      : undefined,
+    isDefault: doc.isDefault,
+  };
+}
+
+function mapModalVoice(
+  doc: CatalogVoiceDoc,
+  sourceData: Record<string, unknown>,
+  source: ModalEngineSource,
+  supportedEngines: string[],
+): MappedVoice {
+  return {
+    id: doc.id,
+    source,
+    supportedEngines,
+    sourceVoiceId: String(sourceData.voiceId),
+    name: doc.name || String(sourceData.name),
+    defaultLanguage:
+      typeof sourceData.defaultLanguage === "string"
+        ? sourceData.defaultLanguage
+        : null,
+    gender: String(sourceData.gender),
+    isDefault: doc.isDefault,
+  };
+}
 
 export async function GET(req: Request) {
   try {
@@ -35,9 +110,9 @@ export async function GET(req: Request) {
     }
 
     const sourceFilter = parsedQuery.data.source;
-    let targetRelationTo: string | undefined = undefined;
-    if (sourceFilter === "aws-polly") targetRelationTo = "polly-voices";
-    if (sourceFilter === "qwen") targetRelationTo = "qwen-voices";
+    const targetRelationTo = sourceFilter
+      ? relationToForSource(sourceFilter)
+      : null;
 
     const result = await payload.find({
       collection: "voices",
@@ -63,37 +138,59 @@ export async function GET(req: Request) {
           },
       limit: parsedQuery.data.limit,
       user,
-      depth: 1, // Need depth 1 to populate sourceRecord
+      depth: 1,
     });
 
-    // Map into unified format
     const docs = result.docs
       .filter(
         (doc) => doc.sourceRecord && typeof doc.sourceRecord.value === "object",
       )
-      .map((doc) => {
+      .flatMap((doc) => {
         const relationTo = doc.sourceRecord.relationTo;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const sourceData = doc.sourceRecord.value as any;
 
-        const sourceStr = relationTo === "polly-voices" ? "aws-polly" : "qwen";
+        if (relationTo === "polly-voices") {
+          if (sourceFilter && sourceFilter !== "aws-polly") {
+            return [];
+          }
 
-        return {
-          id: doc.id,
-          source: sourceStr,
-          sourceVoiceId: sourceData.voiceId,
-          name: doc.name || sourceData.name,
-          languageCode: sourceData.languageCode,
-          languageName: sourceData.languageName,
-          gender: sourceData.gender,
-          engines: sourceData.engines,
-          isDefault: doc.isDefault,
-        };
+          return [mapPollyVoice(doc, sourceData)];
+        }
+
+        if (relationTo !== "modal-voices") {
+          return [];
+        }
+
+        const supportedEngines = (Array.isArray(sourceData.engines)
+          ? sourceData.engines
+          : []
+        ).filter(
+          (entry: unknown): entry is ModalEngineSource =>
+            typeof entry === "string" && isModalEngineSource(entry),
+        );
+
+        if (supportedEngines.length === 0) {
+          return [];
+        }
+
+        if (sourceFilter && isModalEngineSource(sourceFilter)) {
+          if (!modalVoiceSupportsSource(supportedEngines, sourceFilter)) {
+            return [];
+          }
+
+          return [
+            mapModalVoice(doc, sourceData, sourceFilter, supportedEngines),
+          ];
+        }
+
+        return supportedEngines.map((source: ModalEngineSource) =>
+          mapModalVoice(doc, sourceData, source, supportedEngines),
+        );
       })
-      // Sort in JS instead of DB since DB fields were removed
       .sort((a, b) => {
-        const aLang = a.languageCode || "";
-        const bLang = b.languageCode || "";
+        const aLang = a.languageCode || a.name;
+        const bLang = b.languageCode || b.name;
         if (aLang !== bLang) {
           return aLang.localeCompare(bLang);
         }

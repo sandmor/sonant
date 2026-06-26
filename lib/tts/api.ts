@@ -157,8 +157,13 @@ export async function logout() {
   });
 }
 
-export async function fetchVoices() {
-  const response = await fetch("/api/tts/voices?limit=500", {
+export async function fetchVoices(source?: string) {
+  const params = new URLSearchParams({ limit: "500" });
+  if (source) {
+    params.set("source", source);
+  }
+
+  const response = await fetch(`/api/tts/voices?${params.toString()}`, {
     method: "GET",
     credentials: "include",
   });
@@ -186,6 +191,30 @@ export async function fetchVoices() {
 
       return a.name.localeCompare(b.name);
     });
+}
+
+export async function fetchLanguages(engine: "qwen" | "chatterbox") {
+  const response = await fetch(`/api/tts/languages?engine=${engine}`, {
+    method: "GET",
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Unable to load languages"));
+  }
+
+  const payload = (await response.json()) as {
+    docs?: Array<{ id?: string; label?: string }>;
+  };
+
+  const docs = Array.isArray(payload.docs) ? payload.docs : [];
+
+  return docs
+    .filter(
+      (entry): entry is { id: string; label: string } =>
+        typeof entry.id === "string" && typeof entry.label === "string",
+    )
+    .map((entry) => ({ id: entry.id, label: entry.label }));
 }
 
 export async function fetchHistory(page = 1, limit = 50) {

@@ -72,7 +72,7 @@ export interface Config {
     users: User;
     voices: Voice;
     'polly-voices': PollyVoice;
-    'qwen-voices': QwenVoice;
+    'modal-voices': ModalVoice;
     'tts-audio': TtsAudio;
     'tts-generations': TtsGeneration;
     'tts-weekly-usage': TtsWeeklyUsage;
@@ -88,7 +88,7 @@ export interface Config {
     users: UsersSelect<false> | UsersSelect<true>;
     voices: VoicesSelect<false> | VoicesSelect<true>;
     'polly-voices': PollyVoicesSelect<false> | PollyVoicesSelect<true>;
-    'qwen-voices': QwenVoicesSelect<false> | QwenVoicesSelect<true>;
+    'modal-voices': ModalVoicesSelect<false> | ModalVoicesSelect<true>;
     'tts-audio': TtsAudioSelect<false> | TtsAudioSelect<true>;
     'tts-generations': TtsGenerationsSelect<false> | TtsGenerationsSelect<true>;
     'tts-weekly-usage': TtsWeeklyUsageSelect<false> | TtsWeeklyUsageSelect<true>;
@@ -244,8 +244,8 @@ export interface Voice {
         value: number | PollyVoice;
       }
     | {
-        relationTo: 'qwen-voices';
-        value: number | QwenVoice;
+        relationTo: 'modal-voices';
+        value: number | ModalVoice;
       };
   isActive: boolean;
   isDefault: boolean;
@@ -278,12 +278,17 @@ export interface PollyVoice {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "qwen-voices".
+ * via the `definition` "modal-voices".
  */
-export interface QwenVoice {
+export interface ModalVoice {
   id: number;
   name: string;
   voiceId: string;
+  engines: ('qwen' | 'chatterbox')[];
+  /**
+   * Optional default language fallback. The active engine uses this when valid, otherwise its own default.
+   */
+  defaultLanguage?: string | null;
   gender: 'female' | 'male' | 'neutral' | 'unknown';
   isActive: boolean;
   updatedAt: string;
@@ -316,7 +321,7 @@ export interface TtsGeneration {
   id: number;
   user: number | User;
   voice: number | Voice;
-  voiceSource: 'aws-polly' | 'qwen' | 'other';
+  voiceSource: 'aws-polly' | 'qwen' | 'chatterbox';
   sourceVoiceId: string;
   voiceName: string;
   voiceLocale?: string | null;
@@ -384,8 +389,8 @@ export interface PayloadLockedDocument {
         value: number | PollyVoice;
       } | null)
     | ({
-        relationTo: 'qwen-voices';
-        value: number | QwenVoice;
+        relationTo: 'modal-voices';
+        value: number | ModalVoice;
       } | null)
     | ({
         relationTo: 'tts-audio';
@@ -531,11 +536,13 @@ export interface PollyVoicesSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "qwen-voices_select".
+ * via the `definition` "modal-voices_select".
  */
-export interface QwenVoicesSelect<T extends boolean = true> {
+export interface ModalVoicesSelect<T extends boolean = true> {
   name?: T;
   voiceId?: T;
+  engines?: T;
+  defaultLanguage?: T;
   gender?: T;
   isActive?: T;
   updatedAt?: T;

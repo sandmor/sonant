@@ -2,7 +2,8 @@
 
 A Payload + Next.js application for authenticated text-to-speech generation with:
 
-- AWS Polly & Qwen3-TTS (via Modal) synthesis
+- AWS Polly, Qwen3-TTS, and Chatterbox Multilingual synthesis
+- Modal-backed GPU engines behind a single CPU gateway endpoint
 - S3-compatible audio storage with signed playback URLs
 - Per-user weekly character limits
 - Voice catalog sync from providers
@@ -12,8 +13,8 @@ A Payload + Next.js application for authenticated text-to-speech generation with
 
 - Next.js App Router
 - Payload CMS
-- AWS Polly & Qwen3-TTS (voice synthesis)
-- Modal (serverless GPU container for Qwen)
+- AWS Polly (cloud voices)
+- Modal (CPU gateway + GPU workers for Qwen and Chatterbox)
 - S3-compatible object storage (audio files)
 - Bun (package manager / runtime)
 
@@ -23,7 +24,7 @@ A Payload + Next.js application for authenticated text-to-speech generation with
 - PostgreSQL
 - S3-compatible bucket
 - AWS Polly access (AWS credentials or equivalent provider credentials)
-- Modal account & token (if using Qwen3-TTS backend)
+- Modal account and token (if using Qwen or Chatterbox backends)
 
 ## Environment Variables
 
@@ -50,9 +51,23 @@ Set these in `.env`.
 - `AWS_SECRET_ACCESS_KEY` (optional when using default AWS credential chain)
 - `DEFAULT_POLLY_VOICE_ID` (optional, default: `Joanna`)
 
-### Modal / Qwen (optional)
+### Modal TTS (optional)
 
+- `MODAL_TTS_URL` — deployed Modal gateway base URL (for example `https://...modal.run`)
 - `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` (obtained after running `modal token new`)
+
+Deploy the Modal stack:
+
+```bash
+bun run deploy:modal
+```
+
+Set `MODAL_TTS_URL` to the gateway URL printed by Modal. The gateway exposes:
+
+- `GET /health`
+- `POST /synthesize` with `{ engine, text, voice_id, language }`
+
+Supported engines: `qwen`, `chatterbox`.
 
 ### Email Verification (optional)
 
@@ -98,6 +113,7 @@ bun run start
 - `bun run start` - start production server (with env preflight)
 - `bun run lint` - run ESLint
 - `bun run check:env` - validate required runtime env vars
+- `bun run deploy:modal` - deploy the Modal CPU gateway and GPU engine workers
 
 ## First-Time Setup
 
@@ -105,6 +121,49 @@ bun run start
 2. Start the app with `bun run dev`.
 3. Open the admin UI and create your first `admins` account.
 4. End-user accounts continue to register through the public `users` auth API.
+5. For Modal engines, deploy with `bun run deploy:modal`, set `MODAL_TTS_URL`, and configure voices (see below).
+
+## Modal Voice Setup
+
+Modal workers resolve voices in this order:
+
+1. Engine override: `modal/voices/{engine}/registry.json`
+2. Shared fallback: `modal/voices/shared/registry.json`
+
+Both Qwen and Chatterbox images bundle `voices/shared/` plus their engine folder.
+
+### Directory layout
+
+```
+modal/voices/
+  shared/
+    registry.json
+    *.wav
+  qwen/
+    registry.json    # optional overrides only
+  chatterbox/
+    registry.json    # optional overrides only
+```
+
+Shared registry example:
+
+```json
+{
+  "narrator": {
+    "file": "narrator.wav",
+    "ref_text": "Transcript required for Qwen; ignored by Chatterbox"
+  }
+}
+```
+
+Engine overrides replace the entire entry for a `voice_id` and may reference audio in the engine folder.
+
+### Payload admin
+
+1. Create a `modal-voices` record with matching `voiceId`, one or more `engines` (`qwen`, `chatterbox`), and metadata.
+2. Link it from the unified `voices` catalog.
+
+One persona can span multiple engines. The studio lists the same `voiceId` under each supported engine tab.
 
 ## Data Model Overview
 

@@ -2,11 +2,14 @@ import type { CollectionConfig } from "payload";
 
 import { isAdmin, isAuthenticated } from "./access";
 
-export const QwenVoices: CollectionConfig = {
-  slug: "qwen-voices",
+export const MODAL_ENGINE_VALUES = ["qwen", "chatterbox"] as const;
+export type ModalEngine = (typeof MODAL_ENGINE_VALUES)[number];
+
+export const ModalVoices: CollectionConfig = {
+  slug: "modal-voices",
   admin: {
     useAsTitle: "name",
-    defaultColumns: ["name", "voiceId", "gender", "isActive"],
+    defaultColumns: ["name", "voiceId", "engines", "gender", "isActive"],
   },
   access: {
     read: isAuthenticated,
@@ -27,6 +30,25 @@ export const QwenVoices: CollectionConfig = {
       required: true,
       unique: true,
       maxLength: 160,
+    },
+    {
+      name: "engines",
+      type: "select",
+      hasMany: true,
+      required: true,
+      options: [
+        { label: "Qwen", value: "qwen" },
+        { label: "Chatterbox", value: "chatterbox" },
+      ],
+    },
+    {
+      name: "defaultLanguage",
+      type: "text",
+      maxLength: 40,
+      admin: {
+        description:
+          "Optional default language fallback. The active engine uses this when valid, otherwise its own default.",
+      },
     },
     {
       name: "gender",

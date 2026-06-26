@@ -93,7 +93,16 @@ export const TTSGenerations: CollectionConfig = {
     ],
     afterDelete: [
       async ({ doc, req }) => {
-        if (typeof doc.audio !== "number") {
+        const audioId =
+          typeof doc.audio === "number"
+            ? doc.audio
+            : doc.audio &&
+                typeof doc.audio === "object" &&
+                typeof doc.audio.id === "number"
+              ? doc.audio.id
+              : null;
+
+        if (audioId === null) {
           req.payload.logger.error(
             `Generation ${doc.id} has invalid audio relationship value`,
           );
@@ -103,12 +112,13 @@ export const TTSGenerations: CollectionConfig = {
         try {
           await req.payload.delete({
             collection: "tts-audio",
-            id: doc.audio,
+            id: audioId,
             overrideAccess: true,
+            req,
           });
         } catch (error) {
           req.payload.logger.error(
-            `Failed to delete audio upload '${doc.audio}' for generation ${doc.id}: ${String(error)}`,
+            `Failed to delete audio upload '${audioId}' for generation ${doc.id}: ${String(error)}`,
           );
         }
       },

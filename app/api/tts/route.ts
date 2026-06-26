@@ -8,9 +8,16 @@ import { z } from "zod";
 
 import {
   DEFAULT_VOICE_SOURCE,
+  isModalEngineSource,
+  modalVoiceSupportsSource,
+  relationToForSource,
   VOICE_SOURCE_VALUES,
   type VoiceSource,
 } from "@/lib/voices";
+import {
+  getDefaultLanguageForEngine,
+  isValidLanguageForEngine,
+} from "@/lib/tts/languages";
 import {
   ABSOLUTE_MAX_TTS_REQUEST_CHARACTERS,
   getCurrentWeekStartUTC,
@@ -98,19 +105,30 @@ async function resolveVoice(
   source: VoiceSource,
   sourceVoiceId?: string,
 ): Promise<VoiceRecord | null> {
-  let targetRelationTo: string | undefined = undefined;
-  if (source === "aws-polly") targetRelationTo = "polly-voices";
-  if (source === "qwen") targetRelationTo = "qwen-voices";
+  const targetRelationTo = relationToForSource(source);
 
   if (!targetRelationTo) return null;
 
+  const modalEngineFilter = isModalEngineSource(source) ? source : null;
+
   if (sourceVoiceId) {
+    const providerWhere =
+      targetRelationTo === "modal-voices" && modalEngineFilter
+        ? {
+            and: [
+              { voiceId: { equals: sourceVoiceId } },
+              { engines: { contains: modalEngineFilter } },
+            ],
+          }
+        : {
+            voiceId: { equals: sourceVoiceId },
+          };
+
     const providerDocs = await payload.find({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       collection: targetRelationTo as any,
-      where: {
-        voiceId: { equals: sourceVoiceId },
-      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      where: providerWhere as any,
       limit: 1,
       depth: 0,
       user,
@@ -151,22 +169,34 @@ async function resolveVoice(
     }
   }
 
+  const defaultWhere = {
+    and: [
+      { "sourceRecord.relationTo": { equals: targetRelationTo } },
+      { isActive: { equals: true } },
+      { isDefault: { equals: true } },
+    ],
+  };
+
   const preferredDefault = await payload.find({
     collection: "voices",
-    where: {
-      and: [
-        { "sourceRecord.relationTo": { equals: targetRelationTo } },
-        { isActive: { equals: true } },
-        { isDefault: { equals: true } },
-      ],
-    },
-    limit: 1,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    where: defaultWhere as any,
+    limit: 50,
     depth: 1,
     user,
   });
 
-  if (preferredDefault.docs[0]) {
-    const agnostic = preferredDefault.docs[0];
+  const defaultDoc =
+    targetRelationTo === "modal-voices" && modalEngineFilter
+      ? preferredDefault.docs.find((doc) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const sourceData = doc.sourceRecord?.value as any;
+          return modalVoiceSupportsSource(sourceData?.engines, modalEngineFilter);
+        })
+      : preferredDefault.docs[0];
+
+  if (defaultDoc) {
+    const agnostic = defaultDoc;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sourceData = agnostic.sourceRecord?.value as any;
     if (sourceData) {
@@ -355,7 +385,7 @@ export async function POST(req: Request) {
 
     if (
       selectedVoice.source !== "aws-polly" &&
-      selectedVoice.source !== "qwen"
+      !isModalEngineSource(selectedVoice.source)
     ) {
       return Response.json(
         {
@@ -409,42 +439,62 @@ export async function POST(req: Request) {
           };
         }
         audioData = new Uint8Array(byteArray);
-      } else {
-        const qwenUrl = process.env.QWEN_TTS_URL;
-        if (!qwenUrl) {
-          throw new Error("QWEN_TTS_URL is not configured");
+      } else if (isModalEngineSource(selectedVoice.source)) {
+        const modalUrl = process.env.MODAL_TTS_URL;
+        if (!modalUrl) {
+          throw new Error("MODAL_TTS_URL is not configured");
         }
 
-        const qwenResponse = await fetch(qwenUrl, {
+        const resolvedLanguage =
+          language && isValidLanguageForEngine(selectedVoice.source, language)
+            ? language
+            : getDefaultLanguageForEngine(selectedVoice.source);
+
+        const modalResponse = await fetch(`${modalUrl.replace(/\/$/, "")}/synthesize`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
+            engine: selectedVoice.source,
             text,
             voice_id: selectedVoice.sourceVoiceId,
-            language: language || "English",
+            language: resolvedLanguage,
           }),
         });
 
-        if (!qwenResponse.ok) {
+        if (!modalResponse.ok) {
+          const errorBody = await modalResponse.text().catch(() => "");
+          console.error(
+            `Modal synthesis failed (${modalResponse.status}): ${errorBody}`,
+          );
+
           return {
             quotaExceeded: false as const,
             generation: null,
             noAudio: true as const,
+            modalError:
+              modalResponse.status === 400 ? "voice_not_found" : "modal_unavailable",
           };
         }
 
-        const arrayBuffer = await qwenResponse.arrayBuffer();
+        const arrayBuffer = await modalResponse.arrayBuffer();
         if (arrayBuffer.byteLength === 0) {
           return {
             quotaExceeded: false as const,
             generation: null,
             noAudio: true as const,
+            modalError: "modal_unavailable" as const,
           };
         }
         audioData = new Uint8Array(arrayBuffer);
         generationMime = "audio/wav";
+      } else {
+        return {
+          quotaExceeded: false as const,
+          generation: null,
+          noAudio: true as const,
+        };
       }
 
       const title = text.length > 72 ? `${text.slice(0, 69)}...` : text;
@@ -482,8 +532,11 @@ export async function POST(req: Request) {
             sourceVoiceId: selectedVoice.sourceVoiceId,
             voiceName: selectedVoice.name,
             voiceLocale:
-              selectedVoice.source === "qwen"
-                ? language || "English"
+              isModalEngineSource(selectedVoice.source)
+                ? (language &&
+                  isValidLanguageForEngine(selectedVoice.source, language)
+                    ? language
+                    : getDefaultLanguageForEngine(selectedVoice.source))
                 : selectedVoice.languageCode || null,
             voiceEngine:
               selectedVoice.source === "aws-polly" ? selectedEngine : null,
@@ -561,9 +614,16 @@ export async function POST(req: Request) {
     }
 
     if (lockResult.noAudio || !lockResult.generation) {
+      const message =
+        "modalError" in lockResult && lockResult.modalError === "voice_not_found"
+          ? "Voice not found on the Modal engine. Check the voice registry."
+          : "modalError" in lockResult && lockResult.modalError === "modal_unavailable"
+            ? "Modal TTS is unavailable. Try again in a moment."
+            : "No audio generated";
+
       return Response.json(
         {
-          message: "No audio generated",
+          message,
         },
         { status: 502 },
       );

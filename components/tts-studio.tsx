@@ -3,8 +3,6 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import {
   AudioLines,
-  Check,
-  ChevronsUpDown,
   Download,
   History,
   LoaderCircle,
@@ -22,25 +20,20 @@ import Link from "next/link";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 
-import { getSourceLabel, makeVoiceKey, parseVoiceKey } from "@/lib/voices";
+import {
+  getEngineLabel,
+  getSourceLabel,
+  isModalEngineSource,
+  makeVoiceKey,
+  parseVoiceKey,
+  DEFAULT_VOICE_SOURCE,
+  VOICE_SOURCE_VALUES,
+  type VoiceSource,
+} from "@/lib/voices";
 import { AudioController } from "@/lib/audio-controller";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -48,6 +41,7 @@ import {
   fetchGenerationByID,
   fetchHistory,
   fetchUsage,
+  fetchLanguages,
   fetchVoices,
   generateAudio,
   getSessionUser,
@@ -74,8 +68,17 @@ import { InlineConfirm } from "@/components/ui/inline-confirm";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CharacterCounter } from "@/components/ui/character-counter";
 import { Pagination } from "@/components/ui/pagination";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
-import { useDraftPersistence } from "@/hooks/use-draft-persistence";
+import { EngineSelector } from "@/components/tts/engine-selector";
+import { LanguagePicker } from "@/components/tts/language-picker";
+import { VoicePicker } from "@/components/tts/voice-picker";
+import {
+  createInitialDraft,
+  useDraftPersistence,
+  type StudioDraft,
+} from "@/hooks/use-draft-persistence";
+import { getDefaultLanguageForEngine } from "@/lib/tts/languages";
 
 function WaveformBars({
   count = 5,
@@ -131,8 +134,6 @@ function AuthScreen({
   onLoginSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onRegisterSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
 }) {
-  const [authTab, setAuthTab] = useState<"login" | "register">("login");
-
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
       <div
@@ -140,7 +141,7 @@ function AuthScreen({
         style={{ animationDelay: "0.1s" }}
       >
         {/* Logo / Brand */}
-          <div className="mb-10 text-center">
+        <div className="mb-10 text-center">
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-primary/20">
             <SonantIcon className="h-7 w-7 text-primary" />
           </div>
@@ -154,199 +155,180 @@ function AuthScreen({
 
         {/* Auth Card */}
         <div className="rounded-2xl border border-border/60 bg-card/80 p-6 shadow-xl shadow-black/20 backdrop-blur-sm">
-          {/* Tab switcher */}
-          <div className="mb-6 flex rounded-xl bg-muted/50 p-1">
-            <button
-              type="button"
-              onClick={() => setAuthTab("login")}
-              className={[
-                "flex-1 rounded-lg py-2 text-sm font-medium transition-all",
-                authTab === "login"
-                  ? "bg-surface-raised text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              ].join(" ")}
-            >
-              Sign in
-            </button>
-            <button
-              type="button"
-              onClick={() => setAuthTab("register")}
-              className={[
-                "flex-1 rounded-lg py-2 text-sm font-medium transition-all",
-                authTab === "register"
-                  ? "bg-surface-raised text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              ].join(" ")}
-            >
-              Create account
-            </button>
-          </div>
+          <Tabs defaultValue="login" className="gap-6">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="login">Sign in</TabsTrigger>
+              <TabsTrigger value="register">Create account</TabsTrigger>
+            </TabsList>
 
-          {authTab === "login" ? (
-            <form className="space-y-4" onSubmit={onLoginSubmit}>
-              <div className="space-y-1.5">
-                <Label
-                  htmlFor="login-email"
-                  className="text-xs uppercase tracking-wider text-muted-foreground"
-                >
-                  Email
-                </Label>
-                <Input
-                  id="login-email"
-                  type="email"
-                  required
-                  autoComplete="email"
-                  placeholder="you@example.com"
-                  className="rounded-xl border-border/50 bg-muted/40 py-2.5 focus-visible:bg-muted/60"
-                  value={loginForm.email}
-                  onChange={(event) =>
-                    onLoginFormChange({
-                      ...loginForm,
-                      email: event.target.value,
-                    })
-                  }
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label
-                  htmlFor="login-password"
-                  className="text-xs uppercase tracking-wider text-muted-foreground"
-                >
-                  Password
-                </Label>
-                <Input
-                  id="login-password"
-                  type="password"
-                  required
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                  className="rounded-xl border-border/50 bg-muted/40 py-2.5 focus-visible:bg-muted/60"
-                  value={loginForm.password}
-                  onChange={(event) =>
-                    onLoginFormChange({
-                      ...loginForm,
-                      password: event.target.value,
-                    })
-                  }
-                />
-              </div>
-
-              <div className="flex justify-end">
-                <Link
-                  href="/forgot-password"
-                  className="text-xs text-primary/90 transition-colors hover:text-primary"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-
-              {authError ? (
-                <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                  {authError}
+            <TabsContent value="login">
+              <form className="space-y-4" onSubmit={onLoginSubmit}>
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="login-email"
+                    className="text-xs uppercase tracking-wider text-muted-foreground"
+                  >
+                    Email
+                  </Label>
+                  <Input
+                    id="login-email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    className="rounded-xl border-border/50 bg-muted/40 py-2.5 focus-visible:bg-muted/60"
+                    value={loginForm.email}
+                    onChange={(event) =>
+                      onLoginFormChange({
+                        ...loginForm,
+                        email: event.target.value,
+                      })
+                    }
+                  />
                 </div>
-              ) : null}
 
-              {authNotice ? (
-                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
-                  {authNotice}
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="login-password"
+                    className="text-xs uppercase tracking-wider text-muted-foreground"
+                  >
+                    Password
+                  </Label>
+                  <Input
+                    id="login-password"
+                    type="password"
+                    required
+                    autoComplete="current-password"
+                    placeholder="••••••••"
+                    className="rounded-xl border-border/50 bg-muted/40 py-2.5 focus-visible:bg-muted/60"
+                    value={loginForm.password}
+                    onChange={(event) =>
+                      onLoginFormChange({
+                        ...loginForm,
+                        password: event.target.value,
+                      })
+                    }
+                  />
                 </div>
-              ) : null}
 
-              <Button
-                className="w-full rounded-xl py-2.5"
-                disabled={authBusy}
-                type="submit"
-              >
-                {authBusy ? (
-                  <>
-                    <LoaderCircle className="size-4 animate-spin" />
-                    Signing in…
-                  </>
-                ) : (
-                  "Sign in"
-                )}
-              </Button>
-            </form>
-          ) : (
-            <form className="space-y-4" onSubmit={onRegisterSubmit}>
-              <div className="space-y-1.5">
-                <Label
-                  htmlFor="register-email"
-                  className="text-xs uppercase tracking-wider text-muted-foreground"
+                <div className="flex justify-end">
+                  <Link
+                    href="/forgot-password"
+                    className="text-xs text-primary/90 transition-colors hover:text-primary"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+
+                {authError ? (
+                  <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                    {authError}
+                  </div>
+                ) : null}
+
+                {authNotice ? (
+                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+                    {authNotice}
+                  </div>
+                ) : null}
+
+                <Button
+                  className="w-full rounded-xl py-2.5"
+                  disabled={authBusy}
+                  type="submit"
                 >
-                  Email
-                </Label>
-                <Input
-                  id="register-email"
-                  type="email"
-                  required
-                  autoComplete="email"
-                  placeholder="you@example.com"
-                  className="rounded-xl border-border/50 bg-muted/40 py-2.5 focus-visible:bg-muted/60"
-                  value={registerForm.email}
-                  onChange={(event) =>
-                    onRegisterFormChange({
-                      ...registerForm,
-                      email: event.target.value,
-                    })
-                  }
-                />
-              </div>
+                  {authBusy ? (
+                    <>
+                      <LoaderCircle className="size-4 animate-spin" />
+                      Signing in…
+                    </>
+                  ) : (
+                    "Sign in"
+                  )}
+                </Button>
+              </form>
+            </TabsContent>
 
-              <div className="space-y-1.5">
-                <Label
-                  htmlFor="register-password"
-                  className="text-xs uppercase tracking-wider text-muted-foreground"
+            <TabsContent value="register">
+              <form className="space-y-4" onSubmit={onRegisterSubmit}>
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="register-email"
+                    className="text-xs uppercase tracking-wider text-muted-foreground"
+                  >
+                    Email
+                  </Label>
+                  <Input
+                    id="register-email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    className="rounded-xl border-border/50 bg-muted/40 py-2.5 focus-visible:bg-muted/60"
+                    value={registerForm.email}
+                    onChange={(event) =>
+                      onRegisterFormChange({
+                        ...registerForm,
+                        email: event.target.value,
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="register-password"
+                    className="text-xs uppercase tracking-wider text-muted-foreground"
+                  >
+                    Password
+                  </Label>
+                  <Input
+                    id="register-password"
+                    type="password"
+                    required
+                    minLength={8}
+                    autoComplete="new-password"
+                    placeholder="Minimum 8 characters"
+                    className="rounded-xl border-border/50 bg-muted/40 py-2.5 focus-visible:bg-muted/60"
+                    value={registerForm.password}
+                    onChange={(event) =>
+                      onRegisterFormChange({
+                        ...registerForm,
+                        password: event.target.value,
+                      })
+                    }
+                  />
+                </div>
+
+                {authError ? (
+                  <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                    {authError}
+                  </div>
+                ) : null}
+
+                {authNotice ? (
+                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+                    {authNotice}
+                  </div>
+                ) : null}
+
+                <Button
+                  className="w-full rounded-xl py-2.5"
+                  disabled={authBusy}
+                  type="submit"
                 >
-                  Password
-                </Label>
-                <Input
-                  id="register-password"
-                  type="password"
-                  required
-                  minLength={8}
-                  autoComplete="new-password"
-                  placeholder="Minimum 8 characters"
-                  className="rounded-xl border-border/50 bg-muted/40 py-2.5 focus-visible:bg-muted/60"
-                  value={registerForm.password}
-                  onChange={(event) =>
-                    onRegisterFormChange({
-                      ...registerForm,
-                      password: event.target.value,
-                    })
-                  }
-                />
-              </div>
-
-              {authError ? (
-                <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                  {authError}
-                </div>
-              ) : null}
-
-              {authNotice ? (
-                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
-                  {authNotice}
-                </div>
-              ) : null}
-
-              <Button
-                className="w-full rounded-xl py-2.5"
-                disabled={authBusy}
-                type="submit"
-              >
-                {authBusy ? (
-                  <>
-                    <LoaderCircle className="size-4 animate-spin" />
-                    Creating account…
-                  </>
-                ) : (
-                  "Create account"
-                )}
-              </Button>
-            </form>
-          )}
+                  {authBusy ? (
+                    <>
+                      <LoaderCircle className="size-4 animate-spin" />
+                      Creating account…
+                    </>
+                  ) : (
+                    "Create account"
+                  )}
+                </Button>
+              </form>
+            </TabsContent>
+          </Tabs>
         </div>
 
         {/* Footer */}
@@ -432,7 +414,7 @@ function PlayerCard({
           <p className="text-xs font-medium uppercase tracking-widest text-primary">
             Now playing
           </p>
-          <h3 className="mt-1 line-clamp-2 break-words text-base leading-tight font-medium text-foreground sm:text-lg sm:line-clamp-1">
+          <h3 className="mt-1 line-clamp-2 wrap-break-word text-base leading-tight font-medium text-foreground sm:text-lg sm:line-clamp-1">
             {generation.title}
           </h3>
         </div>
@@ -462,7 +444,9 @@ function PlayerCard({
               {voiceLabelFromGeneration(generation)}
             </span>
             <span className="audio-meta-separator">·</span>
-            <span className="shrink-0">{generation.voiceEngine}</span>
+            <span className="shrink-0">
+              {generation.voiceEngine || getEngineLabel(generation.voiceSource)}
+            </span>
             <span className="audio-meta-separator">·</span>
             <span className="shrink-0">{generation.charCount} chars</span>
           </div>
@@ -577,8 +561,12 @@ function HistoryItem({
 
       <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
         <span className="rounded-md bg-muted/50 px-1.5 py-0.5 font-medium">
+          {getSourceLabel(entry.voiceSource)}
+        </span>
+        <span className="rounded-md bg-muted/50 px-1.5 py-0.5 font-medium">
           {entry.voiceName}
         </span>
+        {entry.voiceLocale ? <span>{entry.voiceLocale}</span> : null}
         <span>{formatRelativeTime(entry.createdAt)}</span>
       </div>
 
@@ -588,25 +576,6 @@ function HistoryItem({
     </div>
   );
 }
-
-const QWEN_LANGUAGES = [
-  "English",
-  "Chinese",
-  "French",
-  "Spanish",
-  "Korean",
-  "Japanese",
-  "German",
-  "Italian",
-  "Russian",
-  "Portuguese",
-  "Dutch",
-  "Turkish",
-  "Arabic",
-  "Polish",
-  "Indonesian",
-  "Vietnamese",
-];
 
 function TTSWorkspaceContent() {
   const { resolvedTheme, setTheme } = useTheme();
@@ -628,9 +597,28 @@ function TTSWorkspaceContent() {
   const [voices, setVoices] = useState<VoiceOption[]>([]);
   const [isVoicesLoading, setIsVoicesLoading] = useState(false);
 
-  const [text, setText] = useState("");
-  const [voiceId, setVoiceId] = useState("");
-  const [language, setLanguage] = useState("English");
+  const [draft, setDraft] = useState<StudioDraft>(createInitialDraft);
+  const text = draft.text;
+  const engine = draft.engine;
+  const voiceId = draft.voiceId;
+  const language = draft.language;
+
+  const setText = (value: string) => {
+    setDraft((current) => ({ ...current, text: value }));
+  };
+
+  const setEngine = (value: VoiceSource) => {
+    setDraft((current) => ({ ...current, engine: value }));
+  };
+
+  const setVoiceId = (value: string) => {
+    setDraft((current) => ({ ...current, voiceId: value }));
+  };
+
+  const setLanguage = (value: string) => {
+    setDraft((current) => ({ ...current, language: value }));
+  };
+
   const [openLanguagePicker, setOpenLanguagePicker] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
@@ -657,8 +645,13 @@ function TTSWorkspaceContent() {
     null,
   );
 
+  const [languages, setLanguages] = useState<
+    Array<{ id: string; label: string }>
+  >([]);
+  const [isLanguagesLoading, setIsLanguagesLoading] = useState(false);
+
   // Draft persistence
-  useDraftPersistence(text, setText);
+  useDraftPersistence(draft, setDraft);
 
   const [usage, setUsage] = useState<UsageData | null>(null);
   const [isUsageLoading, setIsUsageLoading] = useState(false);
@@ -668,31 +661,6 @@ function TTSWorkspaceContent() {
     Number.isFinite(usage.maxCharactersPerRequest)
       ? Math.max(0, Math.floor(usage.maxCharactersPerRequest))
       : null;
-
-  const voiceByKey = useMemo(() => {
-    return new Map(
-      voices.map((voice) => [
-        makeVoiceKey(voice.source, voice.sourceVoiceId),
-        voice,
-      ]),
-    );
-  }, [voices]);
-
-  const groupedVoices = useMemo(() => {
-    return voices.reduce<Record<string, VoiceOption[]>>((acc, voice) => {
-      const localeKey =
-        voice.source === "qwen"
-          ? "Multilingual Models"
-          : `${voice.languageName} (${voice.languageCode})`;
-
-      if (!acc[localeKey]) {
-        acc[localeKey] = [];
-      }
-
-      acc[localeKey].push(voice);
-      return acc;
-    }, {});
-  }, [voices]);
 
   const [historyTotalPages, setHistoryTotalPages] = useState(1);
 
@@ -783,21 +751,22 @@ function TTSWorkspaceContent() {
     }
   }
 
-  async function loadVoices() {
+  async function loadVoices(selectedEngine: VoiceSource = engine) {
     setIsVoicesLoading(true);
 
     try {
-      const loadedVoices = await fetchVoices();
+      const loadedVoices = await fetchVoices(selectedEngine);
 
       setVoices(loadedVoices);
       setGenerationError(null);
 
-      setVoiceId((current) => {
+      setDraft((current) => {
+        const currentKey = current.voiceId;
         if (
-          current &&
+          currentKey &&
           loadedVoices.some(
             (voice) =>
-              makeVoiceKey(voice.source, voice.sourceVoiceId) === current,
+              makeVoiceKey(voice.source, voice.sourceVoiceId) === currentKey,
           )
         ) {
           return current;
@@ -805,10 +774,21 @@ function TTSWorkspaceContent() {
 
         const preferred = loadedVoices.find((voice) => voice.isDefault);
         if (preferred) {
-          return makeVoiceKey(preferred.source, preferred.sourceVoiceId);
+          return {
+            ...current,
+            voiceId: makeVoiceKey(preferred.source, preferred.sourceVoiceId),
+          };
         }
 
-        return "";
+        const firstVoice = loadedVoices[0];
+        if (firstVoice) {
+          return {
+            ...current,
+            voiceId: makeVoiceKey(firstVoice.source, firstVoice.sourceVoiceId),
+          };
+        }
+
+        return { ...current, voiceId: "" };
       });
     } catch (error) {
       if (
@@ -827,6 +807,39 @@ function TTSWorkspaceContent() {
       }
     } finally {
       setIsVoicesLoading(false);
+    }
+  }
+
+  async function loadLanguages(selectedEngine: VoiceSource) {
+    if (!isModalEngineSource(selectedEngine)) {
+      setLanguages([]);
+      return;
+    }
+
+    setIsLanguagesLoading(true);
+
+    try {
+      const loadedLanguages = await fetchLanguages(selectedEngine);
+      setLanguages(loadedLanguages);
+      setDraft((current) => {
+        if (loadedLanguages.some((entry) => entry.id === current.language)) {
+          return current;
+        }
+
+        return {
+          ...current,
+          language: getDefaultLanguageForEngine(selectedEngine),
+        };
+      });
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error as Error & { status?: number }).status === 401
+      ) {
+        setAuthUser(null);
+      }
+    } finally {
+      setIsLanguagesLoading(false);
     }
   }
 
@@ -918,21 +931,25 @@ function TTSWorkspaceContent() {
       setHistoryTotalPages(1);
       setUsage(null);
       setVoices([]);
-      setVoiceId("");
+      setDraft(createInitialDraft());
       setSelectedGenerationId(null);
       setIsSelectedGenerationLoading(false);
       setSelectedGenerationLoadError(null);
       return;
     }
 
-    void Promise.all([loadVoices(), loadHistory(currentPage), loadUsage()]);
-  }, [authUser]);
+    void loadVoices(engine);
+    void loadLanguages(engine);
+    void loadUsage();
+  }, [authUser, engine]);
 
   useEffect(() => {
-    if (authUser) {
-      void loadHistory(currentPage);
+    if (!authUser) {
+      return;
     }
-  }, [currentPage]);
+
+    void loadHistory(currentPage);
+  }, [authUser, currentPage]);
 
   useEffect(() => {
     if (!selectedGenerationForAudioId) {
@@ -1044,7 +1061,9 @@ function TTSWorkspaceContent() {
         text,
         voiceSource: parsedVoice.source,
         voiceId: parsedVoice.voiceId,
-        language: parsedVoice.source === "qwen" ? language : undefined,
+        language: isModalEngineSource(parsedVoice.source)
+          ? language
+          : undefined,
       });
 
       setHistory((prev) => [
@@ -1111,12 +1130,16 @@ function TTSWorkspaceContent() {
 
   function applyGenerationToDraft(generation: Generation) {
     setText(generation.inputText);
+    setEngine(
+      VOICE_SOURCE_VALUES.includes(generation.voiceSource as VoiceSource)
+        ? (generation.voiceSource as VoiceSource)
+        : DEFAULT_VOICE_SOURCE,
+    );
     setVoiceId(makeVoiceKey(generation.voiceSource, generation.sourceVoiceId));
-    if (generation.voiceSource === "qwen" && generation.voiceLocale) {
+    if (isModalEngineSource(generation.voiceSource) && generation.voiceLocale) {
       setLanguage(generation.voiceLocale);
     }
     setSelectedGenerationId(generation.id);
-    // Update original text since we're explicitly loading
     setOriginalText(generation.inputText);
   }
 
@@ -1177,7 +1200,6 @@ function TTSWorkspaceContent() {
     );
   }
 
-  const selectedVoice = voiceId ? voiceByKey.get(voiceId) : undefined;
   const effectiveSelectedGenerationId =
     selectedGenerationId ?? selectedGeneration?.id ?? null;
 
@@ -1268,6 +1290,23 @@ function TTSWorkspaceContent() {
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <Mic className="size-4 text-primary" />
+                    <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                      Engine
+                    </Label>
+                  </div>
+                  <EngineSelector
+                    value={engine}
+                    onChange={(nextEngine) => {
+                      setEngine(nextEngine);
+                      setOpenVoicePicker(false);
+                      setOpenLanguagePicker(false);
+                    }}
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Mic className="size-4 text-primary" />
                     <Label
                       htmlFor="voice-id"
                       className="text-xs font-semibold uppercase tracking-widest text-muted-foreground"
@@ -1276,82 +1315,16 @@ function TTSWorkspaceContent() {
                     </Label>
                   </div>
 
-                  <Popover
+                  <VoicePicker
+                    engine={engine}
+                    voices={voices}
+                    voiceId={voiceId}
                     open={openVoicePicker}
                     onOpenChange={setOpenVoicePicker}
-                  >
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={openVoicePicker}
-                        className="w-full justify-between rounded-xl border-border/40 bg-card/60 py-6 text-[15px] font-normal backdrop-blur-sm hover:bg-card/80 hover:text-foreground"
-                      >
-                        {selectedVoice
-                          ? `${selectedVoice.name} — ${getSourceLabel(selectedVoice.source)}`
-                          : "Select a voice..."}
-                        <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      className="p-0 rounded-xl border-border/50 bg-card/95 backdrop-blur-xl"
-                      style={{ width: "var(--radix-popover-trigger-width)" }}
-                    >
-                      <Command defaultValue={voiceId}>
-                        <CommandInput
-                          placeholder="Search voices by name or language..."
-                          className="w-full border-none focus:ring-0"
-                        />
-                        <CommandList className="max-h-75">
-                          <CommandEmpty>No voice found.</CommandEmpty>
-                          {Object.entries(groupedVoices).map(
-                            ([locale, localeVoices]) => (
-                              <CommandGroup
-                                key={locale}
-                                heading={locale}
-                                className="text-muted-foreground"
-                              >
-                                {localeVoices.map((voice) => {
-                                  const voiceVal = makeVoiceKey(
-                                    voice.source,
-                                    voice.sourceVoiceId,
-                                  );
-                                  return (
-                                    <CommandItem
-                                      key={voiceVal}
-                                      value={voiceVal}
-                                      keywords={[
-                                        voice.name,
-                                        locale,
-                                        getSourceLabel(voice.source),
-                                      ]}
-                                      onSelect={() => {
-                                        setVoiceId(voiceVal);
-                                        setOpenVoicePicker(false);
-                                      }}
-                                    >
-                                      <Check
-                                        className={cn(
-                                          "mr-2 size-4",
-                                          voiceId === voiceVal
-                                            ? "opacity-100"
-                                            : "opacity-0",
-                                        )}
-                                      />
-                                      {voice.name} —{" "}
-                                      {getSourceLabel(voice.source)}
-                                    </CommandItem>
-                                  );
-                                })}
-                              </CommandGroup>
-                            ),
-                          )}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+                    onVoiceChange={setVoiceId}
+                  />
 
-                  {selectedVoice?.source === "qwen" && (
+                  {isModalEngineSource(engine) && (
                     <div
                       className="pt-2 animate-fade-up"
                       style={{ animationDelay: "0.1s" }}
@@ -1362,60 +1335,19 @@ function TTSWorkspaceContent() {
                           Language
                         </Label>
                       </div>
-                      <Popover
+                      <LanguagePicker
+                        languages={languages}
+                        language={language}
                         open={openLanguagePicker}
                         onOpenChange={setOpenLanguagePicker}
-                      >
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            role="combobox"
-                            aria-expanded={openLanguagePicker}
-                            className="w-full justify-between rounded-xl border-border/40 bg-card/60 py-6 text-[15px] font-normal backdrop-blur-sm hover:bg-card/80 hover:text-foreground"
-                          >
-                            {language || "Select language..."}
-                            <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent
-                          className="p-0 rounded-xl border-border/50 bg-card/95 backdrop-blur-xl"
-                          style={{
-                            width: "var(--radix-popover-trigger-width)",
-                          }}
-                        >
-                          <Command>
-                            <CommandInput
-                              placeholder="Search language..."
-                              className="w-full border-none focus:ring-0"
-                            />
-                            <CommandList className="max-h-75">
-                              <CommandEmpty>No language found.</CommandEmpty>
-                              <CommandGroup>
-                                {QWEN_LANGUAGES.map((lang) => (
-                                  <CommandItem
-                                    key={lang}
-                                    value={lang}
-                                    onSelect={(currentValue) => {
-                                      setLanguage(lang);
-                                      setOpenLanguagePicker(false);
-                                    }}
-                                  >
-                                    <Check
-                                      className={cn(
-                                        "mr-2 size-4",
-                                        language === lang
-                                          ? "opacity-100"
-                                          : "opacity-0",
-                                      )}
-                                    />
-                                    {lang}
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
+                        onLanguageChange={setLanguage}
+                      />
+                      {isLanguagesLoading ? (
+                        <div className="mt-2 inline-flex items-center gap-2 text-xs text-muted-foreground">
+                          <LoaderCircle className="size-3 animate-spin" />
+                          Loading languages…
+                        </div>
+                      ) : null}
                     </div>
                   )}
 

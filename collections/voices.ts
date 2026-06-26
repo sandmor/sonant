@@ -156,7 +156,7 @@ export const Voices: CollectionConfig = {
     {
       name: "sourceRecord",
       type: "relationship",
-      relationTo: ["polly-voices", "qwen-voices"],
+      relationTo: ["polly-voices", "modal-voices"],
       required: true,
     },
     {

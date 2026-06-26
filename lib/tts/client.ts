@@ -1,3 +1,5 @@
+import { getSourceLabel } from "@/lib/voices";
+
 export type AuthUser = {
   id: number;
   email: string;
@@ -38,8 +40,10 @@ export type VoiceOption = {
   source: string;
   sourceVoiceId: string;
   name: string;
+  supportedEngines?: string[];
   languageCode?: string;
   languageName?: string;
+  defaultLanguage?: string | null;
   gender: string;
   engines?: string[];
   isDefault: boolean;
@@ -139,15 +143,24 @@ export function normalizeVoice(value: unknown): VoiceOption | null {
       ? raw.engines
       : undefined;
 
+  const supportedEngines = Array.isArray(raw.supportedEngines)
+    ? raw.supportedEngines.filter(
+        (entry): entry is string => typeof entry === "string",
+      )
+    : undefined;
+
   return {
     id: raw.id,
     source: raw.source,
     sourceVoiceId: raw.sourceVoiceId,
     name: raw.name,
+    supportedEngines,
     languageCode:
       typeof raw.languageCode === "string" ? raw.languageCode : undefined,
     languageName:
       typeof raw.languageName === "string" ? raw.languageName : undefined,
+    defaultLanguage:
+      typeof raw.defaultLanguage === "string" ? raw.defaultLanguage : null,
     gender: raw.gender,
     engines: engines,
     isDefault: raw.isDefault,
@@ -173,9 +186,10 @@ function getErrorMessage(payload: unknown, fallbackMessage: string) {
     if (
       typeof firstError === "object" &&
       firstError !== null &&
-      typeof (firstError as any).message === "string"
+      "message" in firstError &&
+      typeof firstError.message === "string"
     ) {
-      return (firstError as any).message;
+      return firstError.message;
     }
   }
 
@@ -225,8 +239,19 @@ export function formatRelativeTime(value: string) {
 }
 
 export function voiceLabelFromGeneration(generation: Generation) {
+  const engineLabel = getSourceLabel(generation.voiceSource);
+
   if (generation.voiceLocale) {
-    return `${generation.voiceName} · ${generation.voiceLocale}`;
+    return `${generation.voiceName} · ${engineLabel} · ${generation.voiceLocale}`;
   }
+
+  if (generation.voiceEngine) {
+    return `${generation.voiceName} · ${generation.voiceEngine}`;
+  }
+
+  if (generation.voiceSource !== "aws-polly") {
+    return `${generation.voiceName} · ${engineLabel}`;
+  }
+
   return generation.voiceName;
 }

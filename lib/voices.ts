@@ -1,9 +1,41 @@
-export const VOICE_SOURCE_VALUES = ["aws-polly", "qwen", "other"] as const;
+export const VOICE_SOURCE_VALUES = [
+  "aws-polly",
+  "qwen",
+  "chatterbox",
+] as const;
 export type VoiceSource = (typeof VOICE_SOURCE_VALUES)[number];
+
+export const MODAL_ENGINE_SOURCES = ["qwen", "chatterbox"] as const;
+export type ModalEngineSource = (typeof MODAL_ENGINE_SOURCES)[number];
 
 export const DEFAULT_VOICE_SOURCE: VoiceSource = "aws-polly";
 
 const VOICE_KEY_SEPARATOR = "::";
+
+export function isModalEngineSource(
+  source: string,
+): source is ModalEngineSource {
+  return MODAL_ENGINE_SOURCES.includes(source as ModalEngineSource);
+}
+
+export function modalVoiceSupportsSource(
+  engines: string[] | null | undefined,
+  source: ModalEngineSource,
+): boolean {
+  return Array.isArray(engines) && engines.includes(source);
+}
+
+export function relationToForSource(source: VoiceSource): string | null {
+  if (source === "aws-polly") {
+    return "polly-voices";
+  }
+
+  if (isModalEngineSource(source)) {
+    return "modal-voices";
+  }
+
+  return null;
+}
 
 export function makeVoiceKey(source: string, voiceId: string) {
   return `${source}${VOICE_KEY_SEPARATOR}${voiceId}`;
@@ -41,7 +73,13 @@ export function getSourceLabel(source: string) {
       return "AWS Polly";
     case "qwen":
       return "Qwen";
+    case "chatterbox":
+      return "Chatterbox";
     default:
       return source;
   }
+}
+
+export function getEngineLabel(source: string) {
+  return getSourceLabel(source);
 }

@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Python Modal workers (not part of the Next.js TS project)
+    "modal/**",
   ]),
 ]);
 
