@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import configPromise from "@payload-config";
 import { getRequiredS3Config } from "@/lib/server/env";
+import { resolveStorageObjectKey } from "@/lib/server/tts-audio";
 
 const paramsSchema = z.object({
   id: z.coerce.number().int().positive(),
@@ -50,22 +51,6 @@ function getExtension(filename: string | null, mimeType: string | null) {
   }
 
   return "mp3";
-}
-
-function getObjectKey(audioUrl: string, fallbackFilename: string) {
-  try {
-    const { pathname } = new URL(audioUrl);
-    const normalizedPath = pathname.replace(/^\/+/, "");
-    const bucketPrefix = `${s3Config.bucket}/`;
-
-    if (normalizedPath.startsWith(bucketPrefix)) {
-      return decodeURIComponent(normalizedPath.slice(bucketPrefix.length));
-    }
-  } catch {
-    // Fall back to the stored filename if the URL cannot be parsed.
-  }
-
-  return fallbackFilename;
 }
 
 const s3Config = getRequiredS3Config();
@@ -135,6 +120,12 @@ export async function GET(req: Request, ctx: RouteContext) {
       audio && typeof audio.url === "string" && audio.url.length > 0
         ? audio.url
         : null;
+    const audioPrefix =
+      audio &&
+      "prefix" in audio &&
+      typeof audio.prefix === "string"
+        ? audio.prefix
+        : null;
 
     const mimeType =
       (audio && typeof audio.mimeType === "string" ? audio.mimeType : null) ||
@@ -151,9 +142,19 @@ export async function GET(req: Request, ctx: RouteContext) {
     }
 
     const extension = getExtension(sourceFilename, mimeType);
-    const objectKey = audioUrl
-      ? getObjectKey(audioUrl, sourceFilename)
-      : sourceFilename;
+    const objectKey = resolveStorageObjectKey({
+      url: audioUrl,
+      filename: sourceFilename,
+      prefix: audioPrefix,
+    });
+
+    if (!objectKey) {
+      return Response.json(
+        { message: "Audio file not available" },
+        { status: 404 },
+      );
+    }
+
     const filename = `${sanitizeFileStem(generation.title)}.${extension}`;
     const signedUrl = await getSignedUrl(
       s3Client,

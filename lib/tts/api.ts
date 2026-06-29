@@ -1,10 +1,16 @@
-import type { AuthFormState, AuthUser } from "@/lib/tts/client";
+import type {
+  AuthFormState,
+  AuthUser,
+  Generation,
+  SrtCue,
+  SrtFitSettings,
+  VoiceOption,
+} from "@/lib/tts/client";
 import {
   normalizeGeneration,
+  normalizeSrtJob,
   normalizeVoice,
   readErrorMessage,
-  type Generation,
-  type VoiceOption,
 } from "@/lib/tts/client";
 
 export type RegisterResult = {
@@ -367,4 +373,105 @@ export async function fetchUsage() {
     percentage: typeof payload.percentage === "number" ? payload.percentage : 0,
     remaining: typeof payload.remaining === "number" ? payload.remaining : 0,
   };
+}
+
+export async function createSrtJob(args: {
+  srtText: string;
+  srtFilename: string;
+  engine: "qwen" | "chatterbox";
+  voiceId: string;
+  language?: string;
+  fit?: SrtFitSettings;
+}) {
+  const response = await fetch("/api/tts/srt/jobs", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(args),
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw makeHTTPError("Unauthorized", 401);
+    }
+
+    throw new Error(await readErrorMessage(response, "Unable to create SRT job"));
+  }
+
+  const payload = (await response.json()) as { job?: unknown };
+  const job = normalizeSrtJob(payload.job);
+
+  if (!job) {
+    throw new Error("SRT job created but response format is invalid");
+  }
+
+  return job;
+}
+
+export async function getSrtJob(id: number) {
+  const response = await fetch(`/api/tts/srt/jobs/${id}`, {
+    method: "GET",
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw makeHTTPError("Unauthorized", 401);
+    }
+
+    throw new Error(await readErrorMessage(response, "Unable to load SRT job"));
+  }
+
+  const payload = (await response.json()) as { job?: unknown };
+  const job = normalizeSrtJob(payload.job);
+
+  if (!job) {
+    throw new Error("SRT job response was malformed");
+  }
+
+  return job;
+}
+
+export async function cancelSrtJob(id: number) {
+  const response = await fetch(`/api/tts/srt/jobs/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw makeHTTPError("Unauthorized", 401);
+    }
+
+    throw new Error(await readErrorMessage(response, "Unable to cancel SRT job"));
+  }
+}
+
+export async function previewSrtCue(args: {
+  engine: "qwen" | "chatterbox";
+  voiceId: string;
+  language?: string;
+  cue: SrtCue;
+  fit?: SrtFitSettings;
+}) {
+  const response = await fetch("/api/tts/srt/preview", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(args),
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw makeHTTPError("Unauthorized", 401);
+    }
+
+    throw new Error(await readErrorMessage(response, "Unable to preview cue"));
+  }
+
+  return new Blob([await response.arrayBuffer()], { type: "audio/wav" });
 }

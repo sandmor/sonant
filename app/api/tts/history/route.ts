@@ -58,6 +58,10 @@ export async function GET(req: Request) {
         inputText: true,
         charCount: true,
         createdAt: true,
+        kind: true,
+        srtFilename: true,
+        cuesTotal: true,
+        timelineDurationMs: true,
       },
     });
 
@@ -72,6 +76,10 @@ export async function GET(req: Request) {
       voiceEngine: doc.voiceEngine,
       charCount: doc.charCount,
       createdAt: doc.createdAt,
+      kind: doc.kind,
+      srtFilename: doc.srtFilename,
+      cuesTotal: doc.cuesTotal,
+      timelineDurationMs: doc.timelineDurationMs,
     }));
 
     return Response.json(

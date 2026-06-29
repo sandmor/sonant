@@ -28,6 +28,8 @@ import {
   parseVoiceKey,
   DEFAULT_VOICE_SOURCE,
   VOICE_SOURCE_VALUES,
+  MODAL_ENGINE_SOURCES,
+  type ModalEngineSource,
   type VoiceSource,
 } from "@/lib/voices";
 import { AudioController } from "@/lib/audio-controller";
@@ -75,10 +77,14 @@ import { LanguagePicker } from "@/components/tts/language-picker";
 import { VoicePicker } from "@/components/tts/voice-picker";
 import {
   createInitialDraft,
+  defaultSubtitleEngine,
   useDraftPersistence,
   type StudioDraft,
+  type StudioMode,
 } from "@/hooks/use-draft-persistence";
 import { getDefaultLanguageForEngine } from "@/lib/tts/languages";
+import { formatDuration } from "@/lib/tts/srt";
+import { SubtitleWorkspace } from "@/components/tts/subtitle-workspace";
 
 function WaveformBars({
   count = 5,
@@ -559,13 +565,26 @@ function HistoryItem({
         </div>
       </div>
 
-      <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+        {entry.kind === "subtitles" ? (
+          <span className="rounded-md bg-primary/10 px-1.5 py-0.5 font-medium text-primary">
+            Subtitles
+          </span>
+        ) : null}
         <span className="rounded-md bg-muted/50 px-1.5 py-0.5 font-medium">
           {getSourceLabel(entry.voiceSource)}
         </span>
         <span className="rounded-md bg-muted/50 px-1.5 py-0.5 font-medium">
           {entry.voiceName}
         </span>
+        {entry.cuesTotal ? (
+          <span className="tabular-nums">{entry.cuesTotal} cues</span>
+        ) : null}
+        {entry.timelineDurationMs ? (
+          <span className="tabular-nums">
+            {formatDuration(entry.timelineDurationMs)}
+          </span>
+        ) : null}
         {entry.voiceLocale ? <span>{entry.voiceLocale}</span> : null}
         <span>{formatRelativeTime(entry.createdAt)}</span>
       </div>
@@ -599,16 +618,48 @@ function TTSWorkspaceContent() {
 
   const [draft, setDraft] = useState<StudioDraft>(createInitialDraft);
   const text = draft.text;
+  const workspaceMode = draft.mode;
   const engine = draft.engine;
   const voiceId = draft.voiceId;
   const language = draft.language;
+  const srtFilename = draft.srtFilename;
+  const srtText = draft.srtText;
+  const fitSettings = draft.fitSettings;
+  const subtitleEngine = defaultSubtitleEngine(engine);
 
   const setText = (value: string) => {
     setDraft((current) => ({ ...current, text: value }));
   };
 
+  const setWorkspaceMode = (value: StudioMode) => {
+    setDraft((current) => {
+      const nextEngine =
+        value === "subtitles"
+          ? defaultSubtitleEngine(current.engine)
+          : current.engine;
+
+      return {
+        ...current,
+        mode: value,
+        engine: nextEngine,
+        language:
+          value === "subtitles" && isModalEngineSource(nextEngine)
+            ? getDefaultLanguageForEngine(nextEngine)
+            : current.language,
+      };
+    });
+  };
+
   const setEngine = (value: VoiceSource) => {
     setDraft((current) => ({ ...current, engine: value }));
+  };
+
+  const setSubtitleEngine = (value: ModalEngineSource) => {
+    setDraft((current) => ({
+      ...current,
+      engine: value,
+      language: getDefaultLanguageForEngine(value),
+    }));
   };
 
   const setVoiceId = (value: string) => {
@@ -625,6 +676,9 @@ function TTSWorkspaceContent() {
 
   const [history, setHistory] = useState<Generation[]>([]);
   const [historyQuery, setHistoryQuery] = useState("");
+  const [historyFilter, setHistoryFilter] = useState<
+    "all" | "script" | "subtitles"
+  >("all");
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [isSelectedGenerationLoading, setIsSelectedGenerationLoading] =
@@ -667,20 +721,29 @@ function TTSWorkspaceContent() {
   const filteredHistory = useMemo(() => {
     const query = historyQuery.trim().toLowerCase();
 
-    if (!query) {
-      return history;
-    }
-
     return history.filter((entry) => {
+      if (historyFilter === "script" && entry.kind === "subtitles") {
+        return false;
+      }
+
+      if (historyFilter === "subtitles" && entry.kind !== "subtitles") {
+        return false;
+      }
+
+      if (!query) {
+        return true;
+      }
+
       return (
         entry.title.toLowerCase().includes(query) ||
         entry.inputText.toLowerCase().includes(query) ||
         entry.sourceVoiceId.toLowerCase().includes(query) ||
         entry.voiceName.toLowerCase().includes(query) ||
-        entry.voiceSource.toLowerCase().includes(query)
+        entry.voiceSource.toLowerCase().includes(query) ||
+        (entry.srtFilename?.toLowerCase().includes(query) ?? false)
       );
     });
-  }, [history, historyQuery]);
+  }, [history, historyQuery, historyFilter]);
 
   // Use local history as is for now since it's already paginated on backend
   const paginatedHistory = filteredHistory;
@@ -938,10 +1001,22 @@ function TTSWorkspaceContent() {
       return;
     }
 
-    void loadVoices(engine);
-    void loadLanguages(engine);
     void loadUsage();
-  }, [authUser, engine]);
+  }, [authUser]);
+
+  useEffect(() => {
+    if (!authUser) {
+      return;
+    }
+
+    const targetEngine =
+      workspaceMode === "subtitles" ? subtitleEngine : engine;
+
+    void loadVoices(targetEngine);
+    if (isModalEngineSource(targetEngine)) {
+      void loadLanguages(targetEngine);
+    }
+  }, [authUser, engine, subtitleEngine, workspaceMode]);
 
   useEffect(() => {
     if (!authUser) {
@@ -1267,21 +1342,37 @@ function TTSWorkspaceContent() {
 
       <main className="flex-1">
         <div className="mx-auto max-w-7xl px-3 py-4 sm:px-5 sm:py-6 lg:py-8">
-          <div className="mb-8 animate-fade-up">
+          <div className="mb-6 animate-fade-up">
             <h1 className="font-heading text-3xl text-foreground text-glow sm:text-4xl lg:text-5xl">
               Sonant
             </h1>
             <p className="mt-2 max-w-lg text-muted-foreground">
-              Write your script, choose a voice, and generate a take. Every
-              generation lives in your timeline.
+              Write your script or import subtitles, choose a voice, and
+              generate timed audio. Every take lives in your timeline.
             </p>
           </div>
+
+          <Tabs
+            value={workspaceMode}
+            onValueChange={(value) => setWorkspaceMode(value as StudioMode)}
+            className="mb-6 w-full animate-fade-up"
+          >
+            <TabsList className="grid h-11 w-full grid-cols-2 rounded-xl">
+              <TabsTrigger value="script" className="rounded-lg">
+                Script
+              </TabsTrigger>
+              <TabsTrigger value="subtitles" className="rounded-lg">
+                Subtitles
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
 
           <div className="grid gap-6 lg:grid-cols-[1fr_380px] xl:grid-cols-[1fr_420px]">
             <div
               className="min-w-0 space-y-6 animate-fade-up"
               style={{ animationDelay: "0.1s" }}
             >
+              {workspaceMode === "script" ? (
               <form
                 id="tts-form"
                 className="space-y-5"
@@ -1431,8 +1522,73 @@ function TTSWorkspaceContent() {
                   )}
                 </Button>
               </form>
+              ) : (
+                <SubtitleWorkspace
+                  voices={voices.filter((voice) =>
+                    MODAL_ENGINE_SOURCES.includes(
+                      voice.source as ModalEngineSource,
+                    ),
+                  )}
+                  languages={languages}
+                  isVoicesLoading={isVoicesLoading}
+                  isLanguagesLoading={isLanguagesLoading}
+                  engine={subtitleEngine}
+                  voiceId={voiceId}
+                  language={language}
+                  maxCharactersPerRequest={maxCharactersPerRequest}
+                  srtFilename={srtFilename}
+                  srtText={srtText}
+                  fitSettings={fitSettings}
+                  onEngineChange={setSubtitleEngine}
+                  onVoiceChange={setVoiceId}
+                  onLanguageChange={setLanguage}
+                  onSrtLoaded={({ filename, text: loadedText, cues }) => {
+                    setDraft((current) => ({
+                      ...current,
+                      srtFilename: filename,
+                      srtText: loadedText,
+                      srtCues: cues,
+                    }));
+                  }}
+                  onSrtClear={() => {
+                    setDraft((current) => ({
+                      ...current,
+                      srtFilename: "",
+                      srtText: "",
+                      srtCues: [],
+                    }));
+                  }}
+                  onFitSettingsChange={(nextFit) => {
+                    setDraft((current) => ({
+                      ...current,
+                      fitSettings: nextFit,
+                    }));
+                  }}
+                  onJobCompleted={(generation) => {
+                    void (async () => {
+                      try {
+                        const withAudio = await fetchGenerationByID(generation.id);
+                        setHistory((prev) => [
+                          withAudio,
+                          ...prev.filter((entry) => entry.id !== withAudio.id),
+                        ]);
+                        setSelectedGenerationId(withAudio.id);
+                      } catch {
+                        setHistory((prev) => [
+                          generation,
+                          ...prev.filter((entry) => entry.id !== generation.id),
+                        ]);
+                        setSelectedGenerationId(generation.id);
+                      }
+                    })();
+                  }}
+                  onUsageRefresh={() => {
+                    void loadUsage();
+                  }}
+                />
+              )}
 
-              {selectedGeneration ? (
+              {workspaceMode === "script" && selectedGeneration ? (
                 hasPlayableAudio(selectedGeneration) ? (
                   <PlayerCard
                     generation={selectedGeneration}
@@ -1470,6 +1626,34 @@ function TTSWorkspaceContent() {
                   </div>
                 )
               ) : null}
+
+              {workspaceMode === "subtitles" &&
+              selectedGeneration &&
+              selectedGeneration.kind === "subtitles" ? (
+                hasPlayableAudio(selectedGeneration) ? (
+                  <PlayerCard
+                    generation={selectedGeneration}
+                    onReuse={() => handleReuseWithCheck(selectedGeneration)}
+                  />
+                ) : (
+                  <div className="animate-fade-up rounded-2xl border border-border/50 bg-card/60 p-5 shadow-lg shadow-black/10 backdrop-blur-sm">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      {isSelectedGenerationLoading ? (
+                        <>
+                          <LoaderCircle className="size-4 animate-spin" />
+                          Loading selected audio…
+                        </>
+                      ) : (
+                        <>
+                          <AudioLines className="size-4" />
+                          {selectedGenerationLoadError ||
+                            "Audio unavailable for this item."}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )
+              ) : null}
             </div>
 
             <aside
@@ -1497,6 +1681,30 @@ function TTSWorkspaceContent() {
                     placeholder="Search takes…"
                     className="rounded-xl border-border/40 bg-card/60 pl-9 text-sm backdrop-blur-sm placeholder:text-muted-foreground/40"
                   />
+                </div>
+
+                <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+                  {(
+                    [
+                      ["all", "All"],
+                      ["script", "Scripts"],
+                      ["subtitles", "Subtitles"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setHistoryFilter(value)}
+                      className={[
+                        "shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                        historyFilter === value
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted/50 text-muted-foreground hover:bg-muted",
+                      ].join(" ")}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
 
                 {historyError ? (

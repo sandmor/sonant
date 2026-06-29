@@ -13,6 +13,7 @@ import { PollyVoices } from "./collections/polly-voices";
 import { ModalVoices } from "./collections/modal-voices";
 import { TTSAudio } from "./collections/tts-audio";
 import { TTSGenerations } from "./collections/tts-generations";
+import { TTSSrtJobs } from "./collections/tts-srt-jobs";
 import { TTSWeeklyUsage } from "./collections/tts-weekly-usage";
 import { Tiers } from "./collections/tiers";
 import { syncPollyVoices } from "./lib/polly/sync-voices";
@@ -58,6 +59,7 @@ export default buildConfig({
     ModalVoices,
     TTSAudio,
     TTSGenerations,
+    TTSSrtJobs,
     TTSWeeklyUsage,
     Tiers,
   ],

@@ -75,6 +75,7 @@ export interface Config {
     'modal-voices': ModalVoice;
     'tts-audio': TtsAudio;
     'tts-generations': TtsGeneration;
+    'tts-srt-jobs': TtsSrtJob;
     'tts-weekly-usage': TtsWeeklyUsage;
     tiers: Tier;
     'payload-kv': PayloadKv;
@@ -91,6 +92,7 @@ export interface Config {
     'modal-voices': ModalVoicesSelect<false> | ModalVoicesSelect<true>;
     'tts-audio': TtsAudioSelect<false> | TtsAudioSelect<true>;
     'tts-generations': TtsGenerationsSelect<false> | TtsGenerationsSelect<true>;
+    'tts-srt-jobs': TtsSrtJobsSelect<false> | TtsSrtJobsSelect<true>;
     'tts-weekly-usage': TtsWeeklyUsageSelect<false> | TtsWeeklyUsageSelect<true>;
     tiers: TiersSelect<false> | TiersSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
@@ -332,6 +334,53 @@ export interface TtsGeneration {
   audioMime: string;
   audioByteLength: number;
   charCount: number;
+  kind?: ('script' | 'subtitles') | null;
+  srtFilename?: string | null;
+  cuesTotal?: number | null;
+  timelineDurationMs?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tts-srt-jobs".
+ */
+export interface TtsSrtJob {
+  id: number;
+  user: number | User;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  voiceSource: 'qwen' | 'chatterbox';
+  sourceVoiceId: string;
+  voiceName: string;
+  voice: number | Voice;
+  language: string;
+  srtFilename: string;
+  audioFilename: string;
+  cuesTotal: number;
+  cuesDone: number;
+  fitSettings:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  warnings?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  modalCallId?: string | null;
+  error?: string | null;
+  generation?: (number | null) | TtsGeneration;
+  charCount: number;
+  timelineDurationMs?: number | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -399,6 +448,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'tts-generations';
         value: number | TtsGeneration;
+      } | null)
+    | ({
+        relationTo: 'tts-srt-jobs';
+        value: number | TtsSrtJob;
       } | null)
     | ({
         relationTo: 'tts-weekly-usage';
@@ -584,6 +637,36 @@ export interface TtsGenerationsSelect<T extends boolean = true> {
   audioMime?: T;
   audioByteLength?: T;
   charCount?: T;
+  kind?: T;
+  srtFilename?: T;
+  cuesTotal?: T;
+  timelineDurationMs?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tts-srt-jobs_select".
+ */
+export interface TtsSrtJobsSelect<T extends boolean = true> {
+  user?: T;
+  status?: T;
+  voiceSource?: T;
+  sourceVoiceId?: T;
+  voiceName?: T;
+  voice?: T;
+  language?: T;
+  srtFilename?: T;
+  audioFilename?: T;
+  cuesTotal?: T;
+  cuesDone?: T;
+  fitSettings?: T;
+  warnings?: T;
+  modalCallId?: T;
+  error?: T;
+  generation?: T;
+  charCount?: T;
+  timelineDurationMs?: T;
   updatedAt?: T;
   createdAt?: T;
 }

@@ -200,5 +200,29 @@ export const TTSGenerations: CollectionConfig = {
       required: true,
       min: 1,
     },
+    {
+      name: "kind",
+      type: "select",
+      defaultValue: "script",
+      options: [
+        { label: "Script", value: "script" },
+        { label: "Subtitles", value: "subtitles" },
+      ],
+    },
+    {
+      name: "srtFilename",
+      type: "text",
+      maxLength: 255,
+    },
+    {
+      name: "cuesTotal",
+      type: "number",
+      min: 1,
+    },
+    {
+      name: "timelineDurationMs",
+      type: "number",
+      min: 0,
+    },
   ],
 };

@@ -66,8 +66,28 @@ Set `MODAL_TTS_URL` to the gateway URL printed by Modal. The gateway exposes:
 
 - `GET /health`
 - `POST /synthesize` with `{ engine, text, voice_id, language }`
+- `POST /synthesize-srt` — async SRT job (worker uploads finished WAV to S3)
+- `GET /srt-status?call_id=` — poll job progress and storage metadata
+- `POST /synthesize-cue` — single-cue preview
 
 Supported engines: `qwen`, `chatterbox`.
+
+#### Modal S3 secret (required for SRT jobs)
+
+SRT jobs upload finished audio directly to your S3-compatible bucket from the GPU worker. Create a Modal secret with the same storage variables as the app (works with AWS S3, Cloudflare R2, MinIO, etc.):
+
+```bash
+cd modal
+modal secret create sonant-s3 \
+  S3_ENDPOINT="https://..." \
+  S3_REGION="auto" \
+  S3_BUCKET="your-bucket" \
+  S3_ACCESS_KEY_ID="..." \
+  S3_SECRET_ACCESS_KEY="..." \
+  S3_FORCE_PATH_STYLE="true"
+```
+
+For R2, use your account endpoint, set `S3_REGION=auto`, and keep `S3_FORCE_PATH_STYLE=true`.
 
 ### Email Verification (optional)
 

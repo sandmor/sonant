@@ -15,6 +15,8 @@ export type UsageData = {
   remaining: number;
 };
 
+export type GenerationKind = "script" | "subtitles";
+
 export type Generation = {
   id: number;
   title: string;
@@ -29,6 +31,50 @@ export type Generation = {
   audioByteLength: number | null;
   charCount: number;
   createdAt: string;
+  kind?: GenerationKind;
+  srtFilename?: string;
+  cuesTotal?: number;
+  timelineDurationMs?: number;
+};
+
+export type SrtFitSettings = {
+  maxSpeedup: number;
+  mode: "compress_and_pad";
+};
+
+export type { SrtCue } from "@/lib/tts/srt";
+
+export type SrtCueWarning = {
+  cueIndex: number;
+  code: "overrun_after_clamp" | "heavy_compression_likely";
+  message: string;
+};
+
+export type SrtJobStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export type SrtJob = {
+  id: number;
+  status: SrtJobStatus;
+  engine: string;
+  sourceVoiceId: string;
+  voiceName: string;
+  language: string;
+  srtFilename: string;
+  cuesTotal: number;
+  cuesDone: number;
+  phase?: "synthesizing" | "postprocessing";
+  fitSettings: SrtFitSettings;
+  warnings: SrtCueWarning[];
+  error?: string;
+  generationId?: number;
+  generation?: Generation;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type GenerationWithAudio = Generation & {
@@ -110,6 +156,86 @@ export function normalizeGeneration(value: unknown): Generation | null {
     audioByteLength,
     charCount: raw.charCount,
     createdAt: raw.createdAt,
+    kind: raw.kind === "subtitles" || raw.kind === "script" ? raw.kind : undefined,
+    srtFilename:
+      typeof raw.srtFilename === "string" ? raw.srtFilename : undefined,
+    cuesTotal: typeof raw.cuesTotal === "number" ? raw.cuesTotal : undefined,
+    timelineDurationMs:
+      typeof raw.timelineDurationMs === "number"
+        ? raw.timelineDurationMs
+        : undefined,
+  };
+}
+
+export function normalizeSrtJob(value: unknown): SrtJob | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const raw = value as Record<string, unknown>;
+
+  if (
+    typeof raw.id !== "number" ||
+    typeof raw.status !== "string" ||
+    typeof raw.engine !== "string" ||
+    typeof raw.sourceVoiceId !== "string" ||
+    typeof raw.voiceName !== "string" ||
+    typeof raw.language !== "string" ||
+    typeof raw.srtFilename !== "string" ||
+    typeof raw.cuesTotal !== "number" ||
+    typeof raw.cuesDone !== "number" ||
+    typeof raw.createdAt !== "string" ||
+    typeof raw.updatedAt !== "string"
+  ) {
+    return null;
+  }
+
+  const fitSettingsRaw = raw.fitSettings;
+  const fitSettings =
+    fitSettingsRaw &&
+    typeof fitSettingsRaw === "object" &&
+    typeof (fitSettingsRaw as { maxSpeedup?: unknown }).maxSpeedup === "number"
+      ? {
+          maxSpeedup: (fitSettingsRaw as { maxSpeedup: number }).maxSpeedup,
+          mode: "compress_and_pad" as const,
+        }
+      : { maxSpeedup: 2, mode: "compress_and_pad" as const };
+
+  const warnings = Array.isArray(raw.warnings)
+    ? raw.warnings.filter(
+        (entry): entry is SrtCueWarning =>
+          Boolean(entry) &&
+          typeof entry === "object" &&
+          typeof (entry as SrtCueWarning).cueIndex === "number" &&
+          typeof (entry as SrtCueWarning).code === "string" &&
+          typeof (entry as SrtCueWarning).message === "string",
+      )
+    : [];
+
+  const generation = normalizeGeneration(raw.generation);
+
+  return {
+    id: raw.id,
+    status: raw.status as SrtJobStatus,
+    engine: raw.engine,
+    sourceVoiceId: raw.sourceVoiceId,
+    voiceName: raw.voiceName,
+    language: raw.language,
+    srtFilename: raw.srtFilename,
+    cuesTotal: raw.cuesTotal,
+    cuesDone: raw.cuesDone,
+    phase:
+      raw.phase === "synthesizing" || raw.phase === "postprocessing"
+        ? raw.phase
+        : undefined,
+    fitSettings,
+    warnings,
+    error: typeof raw.error === "string" ? raw.error : undefined,
+    generationId:
+      typeof raw.generationId === "number" ? raw.generationId : undefined,
+    generation: generation ?? undefined,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
   };
 }
 

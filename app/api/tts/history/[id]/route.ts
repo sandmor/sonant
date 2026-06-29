@@ -55,6 +55,10 @@ async function findGenerationById(
           audioByteLength: true,
           charCount: true,
           createdAt: true,
+          kind: true,
+          srtFilename: true,
+          cuesTotal: true,
+          timelineDurationMs: true,
         }
       : {
           user: true,
@@ -127,6 +131,10 @@ export async function GET(req: Request, ctx: RouteContext) {
           audioByteLength: generation.audioByteLength,
           charCount: generation.charCount,
           createdAt: generation.createdAt,
+          kind: generation.kind,
+          srtFilename: generation.srtFilename,
+          cuesTotal: generation.cuesTotal,
+          timelineDurationMs: generation.timelineDurationMs,
         },
       },
       { status: 200 },
